@@ -5,6 +5,7 @@ import "emu/riscv"
 
 func main() {
 	e := riscv.NewEmulator()
-	e.Start()
+	program := make([]riscv.Instruction, 0)
+	e.Start(program)
 	// fmt.Println("Hello world.")
 }
