@@ -101,3 +101,153 @@ func TestAUIPC(t *testing.T) {
 
 	CheckReg(1, expected, &r, t)
 }
+
+func TestADD(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	// reg[1] = reg[2] + reg[3]
+	r.reg[2] = 2
+	r.reg[3] = 3
+	expected := int32(5)
+
+	I := CreateADD(1, 2, 3)
+	I.Execute(&mem, &r)
+
+	CheckReg(1, expected, &r, t)
+}
+
+func TestSUB(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	// reg[1] = reg[2] - reg[3]
+	r.reg[2] = 2
+	r.reg[3] = 3
+	expected := int32(-1)
+
+	I := CreateSUB(1, 2, 3)
+	I.Execute(&mem, &r)
+
+	CheckReg(1, expected, &r, t)
+}
+
+func TestSLT(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	// reg[1] = reg[2] < reg[3]
+	r.reg[2] = 4
+	r.reg[3] = 5
+	expected := int32(1) // 4<5==true
+
+	I := CreateSLT(1, 2, 3)
+	I.Execute(&mem, &r)
+
+	CheckReg(1, expected, &r, t)
+}
+
+func TestSLTU(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	// reg[1] = reg[2] < reg[3]
+	r.reg[2] = 4
+	r.reg[3] = -5
+	expected := int32(1) // abs(4)<abs(-5)==true
+
+	I := CreateSLTU(1, 2, 3)
+	I.Execute(&mem, &r)
+
+	CheckReg(1, expected, &r, t)
+}
+
+func TestAND(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	// reg[1] = reg[2] < reg[3]
+	r.reg[2] = 5         // 0101
+	r.reg[3] = 4         // 0110
+	expected := int32(4) // 0100
+
+	I := CreateAND(1, 2, 3)
+	I.Execute(&mem, &r)
+
+	CheckReg(1, expected, &r, t)
+}
+
+func TestOR(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	// reg[1] = reg[2] < reg[3]
+	r.reg[2] = 5         // 0101
+	r.reg[3] = 6         // 0110
+	expected := int32(7) // 0111
+
+	I := CreateOR(1, 2, 3)
+	I.Execute(&mem, &r)
+
+	CheckReg(1, expected, &r, t)
+}
+
+func TestXOR(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	// reg[1] = reg[2] < reg[3]
+	r.reg[2] = 5         // 0101
+	r.reg[3] = 4         // 0110
+	expected := int32(1) // 0011
+
+	I := CreateXOR(1, 2, 3)
+	I.Execute(&mem, &r)
+
+	CheckReg(1, expected, &r, t)
+}
+
+func TestSLL(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	// reg[1] = reg[2] < reg[3]
+	r.reg[2] = 5 // 0101
+	r.reg[3] = 2
+	expected := int32(20) // 010100
+
+	I := CreateSLL(1, 2, 3)
+	I.Execute(&mem, &r)
+
+	CheckReg(1, expected, &r, t)
+}
+
+func TestSRA(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	// reg[1] = reg[2] < reg[3]
+	r.reg[2] = 20 // 010100
+	r.reg[3] = 2
+	expected := int32(5) // 0101
+
+	I := CreateSRA(1, 2, 3)
+	I.Execute(&mem, &r)
+
+	CheckReg(1, expected, &r, t)
+}
+
+func TestSRL(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	// reg[1] = reg[2] < reg[3]
+	r.reg[2] = 20 // 010100
+	r.reg[3] = 2
+	expected := int32(5) // 0101
+
+	I := CreateSRL(1, 2, 3)
+	I.Execute(&mem, &r)
+
+	CheckReg(1, expected, &r, t)
+}
