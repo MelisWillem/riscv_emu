@@ -135,8 +135,31 @@ type BInstr struct {
 }
 
 type UInstr struct {
-	imm1 int
-	rd   int
+	imm1   int32 // 20 bit offset, I think it should be signed, or you can't jump backwards, but not sure.
+	rd     int32
+	opcode int
+}
+
+func (Inst UInstr) Execute(mem *Memory, regs *Registers) error {
+	imm1_shifted := Inst.imm1 << 12 // fill lowest 12 bits with zero
+	switch Inst.opcode {
+	case AUIPC:
+		// AUIPC (add upper immediate to pc) is used to build pc-relative addresses and uses the U-type
+		// format. AUIPC forms a 32-bit offset from the 20-bit U-immediate, filling in the lowest 12 bits with
+		// zeros, adds this offset to the address of the AUIPC instruction, then places the result in register
+		// rd.
+		regs.reg[Inst.rd] = regs.pc + imm1_shifted
+	case LUI:
+		// LUI (load upper immediate) is used to build 32-bit constants and uses the U-type format. LUI
+		// places the U-immediate value in the top 20 bits of the destination register rd, filling in the lowest
+		// 12 bits with zeros.
+		regs.reg[Inst.rd] = imm1_shifted
+		regs.pc = regs.pc + 1
+	default:
+		panic("Unknown operator type on IInstr")
+	}
+	regs.pc = regs.pc + 1
+	return nil
 }
 
 type PInstr struct {
@@ -151,6 +174,9 @@ const (
 	STORE  int = 0
 	OP_IMM int = 1
 	LOAD   int = 2
+	AUIPC  int = 23 // 0010111 = 23
+	LUI    int = 55 // 0110111 = 55
+
 )
 
 func CreateADDI(src int, dst int, imm int) IInstr {
@@ -180,4 +206,12 @@ func Nop() IInstr {
 
 func Ld(base int, width int, dest int, offset int) IInstr {
 	return IInstr{imm: offset, rs1: base, func3: width, rd: dest, opcode: LOAD}
+}
+
+func CreateLui(imm int32, dst int32) UInstr {
+	return UInstr{imm1: imm, rd: dst, opcode: LUI}
+}
+
+func CreateAUIPC(imm int32, dst int32) UInstr {
+	return UInstr{imm1: imm, rd: dst, opcode: AUIPC}
 }
