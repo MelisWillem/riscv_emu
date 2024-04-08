@@ -4,9 +4,16 @@ import (
 	"testing"
 )
 
-func CheckReg(regIndex int32, expected int32, r *Registers, t *testing.T) {
+func CheckReg(regIndex int, expected int32, r *Registers, t *testing.T) {
 	if r.reg[regIndex] != expected {
-		t.Logf("reg[%d]==%d and should be %d", regIndex, r.reg[1], expected)
+		t.Logf("reg[%d]==%d and should be %d", regIndex, r.reg[regIndex], expected)
+		t.Fail()
+	}
+}
+
+func CheckPc(expected int32, r *Registers, t *testing.T) {
+	if r.pc != expected {
+		t.Logf("pc==%d and should be %d", r.pc, expected)
 		t.Fail()
 	}
 }
@@ -250,4 +257,43 @@ func TestSRL(t *testing.T) {
 	I.Execute(&mem, &r)
 
 	CheckReg(1, expected, &r, t)
+}
+
+func TestJAL(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	begin_pc := int32(10)
+	// use destination address that sets the first bit of each immediate
+	end_pc := int32(1 + (1 << 8) + (1 << (8 + 1)) + (1 << (8 + 1 + 10)))
+
+	r.pc = 10 // we are at 10 -> should be in link register
+
+	I := CreateJAL(end_pc, reg_a0)
+	I.Execute(&mem, &r)
+
+	// make sure the link is saved
+	CheckReg(reg_a0, begin_pc+1, &r, t)
+	CheckPc(end_pc, &r, t)
+}
+
+func TestJALR(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	offset := int32(10)
+	link_reg := reg_a0
+	addr_reg := reg_a1
+	begin_pc := int32(5)
+
+	r.reg[addr_reg] = 15
+	r.pc = begin_pc
+
+	I := CreateJALR(offset, link_reg, addr_reg)
+	I.Execute(&mem, &r)
+
+	// make sure the link is saved
+	CheckReg(link_reg, begin_pc+1, &r, t)
+	// 10 + 15 = 25 -> setting least-sign to 0 results in 24
+	CheckPc(24, &r, t)
 }

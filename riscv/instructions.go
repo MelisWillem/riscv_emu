@@ -18,19 +18,20 @@ const (
 	STORE  int = 0
 	OP_IMM int = 1
 	LOAD   int = 2
-	AUIPC  int = 23 // 0010111
-	ADD    int = 51 // 0110011
-	SUB    int = 51 // 0110011
-	SLT    int = 51 // 0110011
-	SLTU   int = 51 // 0110011
-	AND    int = 51 // 0110011
-	OR     int = 51 // 0110011
-	XOR    int = 51 // 0110011
-	SLL    int = 51 // 0110011
-	SRL    int = 51 // 0110011
-	SRA    int = 51 // 0110011
-	LUI    int = 55 // 0110111
-
+	AUIPC  int = 23  // 0010111
+	ADD    int = 51  // 0110011
+	SUB    int = 51  // 0110011
+	SLT    int = 51  // 0110011
+	SLTU   int = 51  // 0110011
+	AND    int = 51  // 0110011
+	OR     int = 51  // 0110011
+	XOR    int = 51  // 0110011
+	SLL    int = 51  // 0110011
+	SRL    int = 51  // 0110011
+	SRA    int = 51  // 0110011
+	LUI    int = 55  // 0110111
+	JAL    int = 111 // 1101111
+	JALR   int = 103 // 1100111
 )
 
 const (
@@ -154,20 +155,30 @@ func (Inst RInstr) Execute(mem *Memory, regs *Registers) error {
 }
 
 type IInstr struct {
-	imm    int
+	imm    int32
 	rs1    int
-	rd     int
 	func3  int
+	rd     int
 	opcode int
 }
 
 func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
 	switch Inst.opcode {
+	case JALR:
+		// The indirect jump instruction JALR (jump and link register) uses the I-type encoding. The target
+		// address is obtained by adding the sign-extended 12-bit I-immediate to the register rs1, then setting
+		// the least-significant bit of the result to zero. The address of the instruction following the jump
+		// (pc+4) is written to register rd. Register x0 can be used as the destination if the result is not
+		// required.
+		regs.reg[Inst.rd] = regs.pc + 1
+		regs.pc = regs.reg[Inst.rs1] + Inst.imm
+		regs.pc = regs.pc - (regs.pc % 2)
 	case OP_IMM:
 		return op_imm_execute(Inst, mem, regs)
 	default:
 		panic("Unknown operator type on IInstr")
 	}
+	return nil
 }
 
 func op_imm_execute(Inst IInstr, _ *Memory, regs *Registers) error {
@@ -272,6 +283,38 @@ func (Inst UInstr) Execute(mem *Memory, regs *Registers) error {
 	return nil
 }
 
+type JInstr struct {
+	imm0   int32 // 1 bit immediate
+	imm1   int32
+	imm2   int32
+	imm3   int32
+	rd     int
+	opcode int
+}
+
+func (Instr JInstr) Execute(mem *Memory, regs *Registers) error {
+	if Instr.opcode == JAL {
+		// The jump and link (JAL) instruction uses the J-type format, where the J-immediate encodes a
+		// signed offset in multiples of 2 bytes. The offset is sign-extended and added to the address of the
+		// jump instruction to form the jump target address. Jumps can therefore target a ±1 MiB range.
+		// JAL stores the address of the instruction following the jump (pc+4) into register rd. The standard
+		// software calling convention uses x1 as the return address register and x5 as an alternate link register.
+
+		jump_addr := (Instr.imm0 << (8 + 1 + 10)) +
+			(Instr.imm1 << (8 + 1)) +
+			(Instr.imm2 << 8) +
+			Instr.imm3
+
+		// save the next pc to the link register
+		regs.reg[Instr.rd] = regs.pc + 1
+
+		// jump to the new location
+		regs.pc = jump_addr
+	}
+
+	return nil
+}
+
 type PInstr struct {
 	imm1 int
 	imm2 int
@@ -280,19 +323,19 @@ type PInstr struct {
 	rsd  int
 }
 
-func CreateADDI(src int, dst int, imm int) IInstr {
+func CreateADDI(src int, dst int, imm int32) IInstr {
 	return IInstr{rs1: dst, rd: src, imm: imm, func3: FUNC3_ADDI, opcode: OP_IMM}
 }
 
-func CreateSLLI(src int, dst int, imm int) IInstr {
+func CreateSLLI(src int, dst int, imm int32) IInstr {
 	return IInstr{rs1: dst, rd: src, imm: imm, func3: FUNC3_SLLI, opcode: OP_IMM}
 }
 
-func CreateSLRI(src int, dst int, imm int) IInstr {
+func CreateSLRI(src int, dst int, imm int32) IInstr {
 	return IInstr{rs1: dst, rd: src, imm: imm, func3: FUNC3_SRLI, opcode: OP_IMM}
 }
 
-func CreateSRAI(src int, dst int, imm int) IInstr {
+func CreateSRAI(src int, dst int, imm int32) IInstr {
 	return IInstr{rs1: dst, rd: src, imm: imm, func3: FUNC3_SRAI, opcode: OP_IMM}
 }
 
@@ -305,7 +348,7 @@ func Nop() IInstr {
 	return CreateADDI(0, 0, 0)
 }
 
-func Ld(base int, width int, dest int, offset int) IInstr {
+func Ld(base int, width int, dest int, offset int32) IInstr {
 	return IInstr{imm: offset, rs1: base, func3: width, rd: dest, opcode: LOAD}
 }
 
@@ -355,4 +398,21 @@ func CreateSRA(rd int, rs1 int, rs2 int) RInstr {
 
 func CreateSRL(rd int, rs1 int, rs2 int) RInstr {
 	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SRL, func7: FUNC7_SRL, opcode: SRL}
+}
+
+func CreateJAL(imm int32, link_reg int) JInstr {
+	imm0 := (imm >> (8 + 1 + 10)) & 1 // 1 bit
+	imm1 := (imm >> (8 + 1)) & 1023   // 10 bits long
+	imm2 := (imm >> 8) & 1            // 1 bit
+	imm3 := imm & 255                 // 8 bits long
+
+	return JInstr{imm0: imm0, imm1: imm1, imm2: imm2, imm3: imm3, rd: link_reg, opcode: JAL}
+}
+
+func CreateJ(imm int32) JInstr {
+	return CreateJAL(imm, reg_zero)
+}
+
+func CreateJALR(imm int32, link_reg int, addr_reg int) IInstr {
+	return IInstr{imm: imm, rd: link_reg, opcode: JALR, rs1: addr_reg}
 }
