@@ -15,66 +15,69 @@ const (
 )
 
 const (
-	STORE  int = 0
-	OP_IMM int = 1
-	LOAD   int = 2
-	AUIPC  int = 23  // 0010111
-	ADD    int = 51  // 0110011
-	SUB    int = 51  // 0110011
-	SLT    int = 51  // 0110011
-	SLTU   int = 51  // 0110011
-	AND    int = 51  // 0110011
-	OR     int = 51  // 0110011
-	XOR    int = 51  // 0110011
-	SLL    int = 51  // 0110011
-	SRL    int = 51  // 0110011
-	SRA    int = 51  // 0110011
-	LUI    int = 55  // 0110111
-	JAL    int = 111 // 1101111
-	JALR   int = 103 // 1100111
+	STORE  int8 = 0
+	OP_IMM int8 = 1
+	LOAD   int8 = 2
+	AUIPC  int8 = 23  // 0010111
+	ADD    int8 = 51  // 0110011
+	SUB    int8 = 51  // 0110011
+	SLT    int8 = 51  // 0110011
+	SLTU   int8 = 51  // 0110011
+	AND    int8 = 51  // 0110011
+	OR     int8 = 51  // 0110011
+	XOR    int8 = 51  // 0110011
+	SLL    int8 = 51  // 0110011
+	SRL    int8 = 51  // 0110011
+	SRA    int8 = 51  // 0110011
+	LUI    int8 = 55  // 0110111
+	JAL    int8 = 111 // 1101111
+	JALR   int8 = 103 // 1100111
+)
+
+// RInstr
+const (
+	FUNC3_ADD  int8 = 0
+	FUNC3_SLT  int8 = 2
+	FUNC3_SLTU int8 = 3
+	FUNC3_AND  int8 = 7
+	FUNC3_OR   int8 = 6
+	FUNC3_XOR  int8 = 4
+	FUNC3_SLL  int8 = 1
+	FUNC3_SRL  int8 = 5
+	FUNC3_SUB  int8 = 0
+	FUNC3_SRA  int8 = 5
+)
+
+// RInstr
+const (
+	FUNC7_ADD  int8 = 0
+	FUNC7_SLT  int8 = 0
+	FUNC7_SLTU int8 = 0
+	FUNC7_AND  int8 = 0
+	FUNC7_OR   int8 = 0
+	FUNC7_XOR  int8 = 0
+	FUNC7_SLL  int8 = 0
+	FUNC7_SRL  int8 = 0
+	FUNC7_SUB  int8 = 32 // 0100000
+	FUNC7_SRA  int8 = 32 // 0100000
+
 )
 
 const (
-	FUNC3_ADD  int = 0
-	FUNC3_SLT  int = 2
-	FUNC3_SLTU int = 3
-	FUNC3_AND  int = 7
-	FUNC3_OR   int = 6
-	FUNC3_XOR  int = 4
-	FUNC3_SLL  int = 1
-	FUNC3_SRL  int = 5
-	FUNC3_SUB  int = 0
-	FUNC3_SRA  int = 5
+	FUNC7_RINST_0 int8 = 0
+	FUNC7_RINST_1 int8 = 32
 )
 
+// IInstr
 const (
-	FUNC7_ADD  int = 0
-	FUNC7_SLT  int = 0
-	FUNC7_SLTU int = 0
-	FUNC7_AND  int = 0
-	FUNC7_OR   int = 0
-	FUNC7_XOR  int = 0
-	FUNC7_SLL  int = 0
-	FUNC7_SRL  int = 0
-	FUNC7_SUB  int = 32 // 0100000
-	FUNC7_SRA  int = 32 // 0100000
-
-)
-
-const (
-	FUNC7_RINST_0 int = 0
-	FUNC7_RINST_1 int = 32
-)
-
-const (
-	FUNC3_ADDI int = 0
-	FUNC3_SLTI int = 1
-	FUNC3_ANDI int = 2
-	FUNC3_ORI  int = 3
-	FUNC3_XORI int = 4
-	FUNC3_SLLI int = 5
-	FUNC3_SRLI int = 6
-	FUNC3_SRAI int = 7
+	FUNC3_ADDI int8 = 0
+	FUNC3_SLTI int8 = 1
+	FUNC3_ANDI int8 = 2
+	FUNC3_ORI  int8 = 3
+	FUNC3_XORI int8 = 4
+	FUNC3_SLLI int8 = 5
+	FUNC3_SRLI int8 = 6
+	FUNC3_SRAI int8 = 7
 )
 
 type Instruction interface {
@@ -93,9 +96,9 @@ type RInstr struct {
 	rs2    int
 	rs1    int
 	rd     int
-	opcode int
-	func3  int
-	func7  int
+	opcode int8
+	func3  int8
+	func7  int8
 }
 
 func (Inst RInstr) Execute(mem *Memory, regs *Registers) error {
@@ -157,9 +160,9 @@ func (Inst RInstr) Execute(mem *Memory, regs *Registers) error {
 type IInstr struct {
 	imm    int32
 	rs1    int
-	func3  int
+	func3  int8
 	rd     int
-	opcode int
+	opcode int8
 }
 
 func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
@@ -258,7 +261,7 @@ type BInstr struct {
 type UInstr struct {
 	imm1   int32 // 20 bit offset, I think it should be signed, or you can't jump backwards, but not sure.
 	rd     int32
-	opcode int
+	opcode int8
 }
 
 func (Inst UInstr) Execute(mem *Memory, regs *Registers) error {
@@ -289,7 +292,7 @@ type JInstr struct {
 	imm2   int32
 	imm3   int32
 	rd     int
-	opcode int
+	opcode int8
 }
 
 func (Instr JInstr) Execute(mem *Memory, regs *Registers) error {
@@ -346,10 +349,6 @@ func CreateMV(src int, dst int) IInstr {
 func Nop() IInstr {
 	// ADDI x0, x0, 0
 	return CreateADDI(0, 0, 0)
-}
-
-func Ld(base int, width int, dest int, offset int32) IInstr {
-	return IInstr{imm: offset, rs1: base, func3: width, rd: dest, opcode: LOAD}
 }
 
 func CreateLui(imm int32, dst int32) UInstr {
