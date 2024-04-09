@@ -7,32 +7,63 @@ import (
 )
 
 const (
-	R    int = 1
-	I    int = 2
-	S    int = 3
-	U    int = 4
-	IImm int = 5
+	RInstrType    int8 = 1
+	IInstrType    int8 = 2
+	SInstrType    int8 = 3
+	UInstrType    int8 = 4
+	JInstrType    int8 = 5
+	IImmInstrType int8 = 6
 )
 
 const (
 	STORE  int8 = 0
-	OP_IMM int8 = 1
 	LOAD   int8 = 2
+	OP_IMM int8 = 19
 	AUIPC  int8 = 23  // 0010111
-	ADD    int8 = 51  // 0110011
-	SUB    int8 = 51  // 0110011
-	SLT    int8 = 51  // 0110011
-	SLTU   int8 = 51  // 0110011
-	AND    int8 = 51  // 0110011
-	OR     int8 = 51  // 0110011
-	XOR    int8 = 51  // 0110011
-	SLL    int8 = 51  // 0110011
-	SRL    int8 = 51  // 0110011
-	SRA    int8 = 51  // 0110011
+	OP     int8 = 51  // 0110011
 	LUI    int8 = 55  // 0110111
 	JAL    int8 = 111 // 1101111
 	JALR   int8 = 103 // 1100111
 )
+
+const (
+	FUNC7_RINST_0 int8 = 0
+	FUNC7_RINST_1 int8 = 32
+)
+
+// IInstr
+const (
+	FUNC3_ADDI int8 = 0
+	FUNC3_SLTI int8 = 1
+	FUNC3_ANDI int8 = 2
+	FUNC3_ORI  int8 = 3
+	FUNC3_XORI int8 = 4
+	FUNC3_SLLI int8 = 5
+	FUNC3_SRLI int8 = 6
+	FUNC3_SRAI int8 = 7
+)
+
+type Instruction interface {
+	Execute(mem *Memory, regs *Registers) error
+}
+
+type InvalidInstrction struct {
+}
+
+func (Inst InvalidInstrction) Execute(mem *Memory, regs *Registers) {
+	panic("Trying to execute invalid instruction...")
+}
+
+type RInstr struct {
+	rs2    int
+	rs1    int
+	rd     int
+	opcode int8
+	func3  int8
+	func7  int8
+}
+
+func DecodeRInstr(word uint32) IInstr { return IInstr{} }
 
 // RInstr
 const (
@@ -63,95 +94,63 @@ const (
 
 )
 
-const (
-	FUNC7_RINST_0 int8 = 0
-	FUNC7_RINST_1 int8 = 32
-)
-
-// IInstr
-const (
-	FUNC3_ADDI int8 = 0
-	FUNC3_SLTI int8 = 1
-	FUNC3_ANDI int8 = 2
-	FUNC3_ORI  int8 = 3
-	FUNC3_XORI int8 = 4
-	FUNC3_SLLI int8 = 5
-	FUNC3_SRLI int8 = 6
-	FUNC3_SRAI int8 = 7
-)
-
-type Instruction interface {
-	Execute(mem *Memory, regs *Registers) error
-	Print()
-}
-
-type InvalidInstrction struct {
-}
-
-func (Inst InvalidInstrction) Execute(mem *Memory, regs *Registers) {
-	panic("Trying to execute invalid instruction...")
-}
-
-type RInstr struct {
-	rs2    int
-	rs1    int
-	rd     int
-	opcode int8
-	func3  int8
-	func7  int8
+func RegisterRInstr(registration_map *map[int8]int8) {
+	(*registration_map)[OP] = RInstrType
 }
 
 func (Inst RInstr) Execute(mem *Memory, regs *Registers) error {
 	// ADD performs the addition of rs1 and rs2. SUB performs the subtraction of rs2 from rs1. Overflows
 	// are ignored and the low XLEN bits of results are written to the destination rd.
-	if Inst.opcode == ADD && Inst.func7 == FUNC7_ADD && Inst.func3 == FUNC3_ADD {
-		// ignore overflow
-		regs.reg[Inst.rd] = regs.reg[Inst.rs1] + regs.reg[Inst.rs2]
-	} else if Inst.opcode == SUB && Inst.func7 == FUNC7_SUB && Inst.func3 == FUNC3_SUB {
-		// ignore overfloat
-		regs.reg[Inst.rd] = regs.reg[Inst.rs1] - regs.reg[Inst.rs2]
-	} else if Inst.opcode == SLTU && Inst.func7 == FUNC7_SLTU && Inst.func3 == FUNC3_SLTU {
-		// SLT and SLTU perform signed and unsigned compares respectively, writing 1 to rd if rs1 < rs2, 0 otherwise. Note
-		// SLTU rd, x0, rs2 sets rd to 1 if rs2 is not equal to zero, otherwise sets rd to zero (assembler
-		// pseudoinstruction SNEZ rd, rs).
-		unsigned_rs1 := IntAbs(regs.reg[Inst.rs1])
-		unsigned_rs2 := IntAbs(regs.reg[Inst.rs2])
-		if unsigned_rs1 < unsigned_rs2 {
-			regs.reg[Inst.rd] = 1
-		} else {
-			regs.reg[Inst.rd] = 0
-		}
-	} else if Inst.opcode == SLT && Inst.func7 == FUNC7_SLT && Inst.func3 == FUNC3_SLT {
-		if regs.reg[Inst.rs1] < regs.reg[Inst.rs2] {
-			regs.reg[Inst.rd] = 1
-		} else {
-			regs.reg[Inst.rd] = 0
-		}
-	} else if Inst.opcode == AND && Inst.func7 == FUNC7_AND && Inst.func3 == FUNC3_AND {
-		// AND, OR, and XOR perform bitwise logical operations.regs.pc = regs.pc + 1
-		regs.reg[Inst.rd] = regs.reg[Inst.rs1] & regs.reg[Inst.rs2]
-	} else if Inst.opcode == OR && Inst.func7 == FUNC7_OR && Inst.func3 == FUNC3_OR {
-		regs.reg[Inst.rd] = regs.reg[Inst.rs1] | regs.reg[Inst.rs2]
-	} else if Inst.opcode == XOR && Inst.func7 == FUNC7_XOR && Inst.func3 == FUNC3_XOR {
-		regs.reg[Inst.rd] = regs.reg[Inst.rs1] ^ regs.reg[Inst.rs2]
-	} else if Inst.opcode == SLL && Inst.func7 == FUNC7_SLL && Inst.func3 == FUNC3_SLL {
-		// SLL, SRL, and SRA perform logical left, logical right, and arithmetic right shifts on the value in
-		// register rs1 by the shift amount held in the lower 5 bits of register rs2.
-		// 11111=31
-		filter_5_bit := int32(31)
-		regs.reg[Inst.rd] = regs.reg[Inst.rs1] << regs.reg[Inst.rs2] & filter_5_bit
-	} else if Inst.opcode == SRA && Inst.func7 == FUNC7_SRA && Inst.func3 == FUNC3_SRA {
-		// arithmetic shift so keep the sign
-		filter_5_bit := int32(31)
-		regs.reg[Inst.rd] = regs.reg[Inst.rs1] >> (regs.reg[Inst.rs2] & filter_5_bit)
-	} else if Inst.opcode == SRL && Inst.func7 == FUNC7_SRL && Inst.func3 == FUNC3_SRL {
-		filter_5_bit := uint32(31)
-		// logical one, so we need to convert to unsigned first
-		unsigned_rs1 := ReinterpreteAsUnsigned(regs.reg[Inst.rs1])
-		unsigned_rs2 := uint32(regs.reg[Inst.rs2]) & filter_5_bit
+	if Inst.opcode == OP {
+		if Inst.func7 == FUNC7_ADD && Inst.func3 == FUNC3_ADD {
+			// ignore overflow
+			regs.reg[Inst.rd] = regs.reg[Inst.rs1] + regs.reg[Inst.rs2]
+		} else if Inst.func7 == FUNC7_SUB && Inst.func3 == FUNC3_SUB {
+			// ignore overfloat
+			regs.reg[Inst.rd] = regs.reg[Inst.rs1] - regs.reg[Inst.rs2]
+		} else if Inst.func7 == FUNC7_SLTU && Inst.func3 == FUNC3_SLTU {
+			// SLT and SLTU perform signed and unsigned compares respectively, writing 1 to rd if rs1 < rs2, 0 otherwise. Note
+			// SLTU rd, x0, rs2 sets rd to 1 if rs2 is not equal to zero, otherwise sets rd to zero (assembler
+			// pseudoinstruction SNEZ rd, rs).
+			unsigned_rs1 := IntAbs(regs.reg[Inst.rs1])
+			unsigned_rs2 := IntAbs(regs.reg[Inst.rs2])
+			if unsigned_rs1 < unsigned_rs2 {
+				regs.reg[Inst.rd] = 1
+			} else {
+				regs.reg[Inst.rd] = 0
+			}
+		} else if Inst.func7 == FUNC7_SLT && Inst.func3 == FUNC3_SLT {
+			if regs.reg[Inst.rs1] < regs.reg[Inst.rs2] {
+				regs.reg[Inst.rd] = 1
+			} else {
+				regs.reg[Inst.rd] = 0
+			}
+		} else if Inst.func7 == FUNC7_AND && Inst.func3 == FUNC3_AND {
+			// AND, OR, and XOR perform bitwise logical operations.regs.pc = regs.pc + 1
+			regs.reg[Inst.rd] = regs.reg[Inst.rs1] & regs.reg[Inst.rs2]
+		} else if Inst.func7 == FUNC7_OR && Inst.func3 == FUNC3_OR {
+			regs.reg[Inst.rd] = regs.reg[Inst.rs1] | regs.reg[Inst.rs2]
+		} else if Inst.func7 == FUNC7_XOR && Inst.func3 == FUNC3_XOR {
+			regs.reg[Inst.rd] = regs.reg[Inst.rs1] ^ regs.reg[Inst.rs2]
+		} else if Inst.func7 == FUNC7_SLL && Inst.func3 == FUNC3_SLL {
+			// SLL, SRL, and SRA perform logical left, logical right, and arithmetic right shifts on the value in
+			// register rs1 by the shift amount held in the lower 5 bits of register rs2.
+			// 11111=31
+			filter_5_bit := int32(31)
+			regs.reg[Inst.rd] = regs.reg[Inst.rs1] << regs.reg[Inst.rs2] & filter_5_bit
+		} else if Inst.func7 == FUNC7_SRA && Inst.func3 == FUNC3_SRA {
+			// arithmetic shift so keep the sign
+			filter_5_bit := int32(31)
+			regs.reg[Inst.rd] = regs.reg[Inst.rs1] >> (regs.reg[Inst.rs2] & filter_5_bit)
+		} else if Inst.func7 == FUNC7_SRL && Inst.func3 == FUNC3_SRL {
+			filter_5_bit := uint32(31)
+			// logical one, so we need to convert to unsigned first
+			unsigned_rs1 := ReinterpreteAsUnsigned(regs.reg[Inst.rs1])
+			unsigned_rs2 := uint32(regs.reg[Inst.rs2]) & filter_5_bit
 
-		unsigned_rd := unsigned_rs1 >> unsigned_rs2
-		regs.reg[Inst.rd] = ReinterpreteAsSigned(unsigned_rd)
+			unsigned_rd := unsigned_rs1 >> unsigned_rs2
+			regs.reg[Inst.rd] = ReinterpreteAsSigned(unsigned_rd)
+		}
 	}
 
 	return nil
@@ -163,6 +162,13 @@ type IInstr struct {
 	func3  int8
 	rd     int
 	opcode int8
+}
+
+func DecodeIInstr(word uint32) IInstr { return IInstr{} }
+
+func RegisterIInstr(registration_map *map[int8]int8) {
+	(*registration_map)[OP_IMM] = IInstrType
+	(*registration_map)[JALR] = IInstrType
 }
 
 func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
@@ -249,6 +255,8 @@ type SInstr struct {
 	func3 int
 }
 
+func DecodeSInstr(word uint32) IInstr { return IInstr{} }
+
 type BInstr struct {
 	imm1 int
 	imm2 int
@@ -258,11 +266,15 @@ type BInstr struct {
 	rs2  int
 }
 
+func DecodeBInstr(word uint32) IInstr { return IInstr{} }
+
 type UInstr struct {
 	imm1   int32 // 20 bit offset, I think it should be signed, or you can't jump backwards, but not sure.
 	rd     int32
 	opcode int8
 }
+
+func DecodeUInstr(word uint32) IInstr { return IInstr{} }
 
 func (Inst UInstr) Execute(mem *Memory, regs *Registers) error {
 	imm1_shifted := Inst.imm1 << 12 // fill lowest 12 bits with zero
@@ -295,6 +307,8 @@ type JInstr struct {
 	opcode int8
 }
 
+func DecodeJInstr(word uint32) IInstr { return IInstr{} }
+
 func (Instr JInstr) Execute(mem *Memory, regs *Registers) error {
 	if Instr.opcode == JAL {
 		// The jump and link (JAL) instruction uses the J-type format, where the J-immediate encodes a
@@ -325,6 +339,8 @@ type PInstr struct {
 	imm4 int
 	rsd  int
 }
+
+func DecodePInstr(word uint32) IInstr { return IInstr{} }
 
 func CreateADDI(src int, dst int, imm int32) IInstr {
 	return IInstr{rs1: dst, rd: src, imm: imm, func3: FUNC3_ADDI, opcode: OP_IMM}
@@ -360,43 +376,43 @@ func CreateAUIPC(imm int32, dst int32) UInstr {
 }
 
 func CreateADD(rd int, rs1 int, rs2 int) RInstr {
-	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_ADD, func7: FUNC7_ADD, opcode: ADD}
+	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_ADD, func7: FUNC7_ADD, opcode: OP}
 }
 
 func CreateSUB(rd int, rs1 int, rs2 int) RInstr {
-	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SUB, func7: FUNC7_SUB, opcode: SUB}
+	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SUB, func7: FUNC7_SUB, opcode: OP}
 }
 
 func CreateSLTU(rd int, rs1 int, rs2 int) RInstr {
-	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SLTU, func7: FUNC7_SLTU, opcode: SLTU}
+	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SLTU, func7: FUNC7_SLTU, opcode: OP}
 }
 
 func CreateSLT(rd int, rs1 int, rs2 int) RInstr {
-	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SLT, func7: FUNC7_SLT, opcode: SLT}
+	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SLT, func7: FUNC7_SLT, opcode: OP}
 }
 
 func CreateAND(rd int, rs1 int, rs2 int) RInstr {
-	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_AND, func7: FUNC7_AND, opcode: AND}
+	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_AND, func7: FUNC7_AND, opcode: OP}
 }
 
 func CreateOR(rd int, rs1 int, rs2 int) RInstr {
-	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_OR, func7: FUNC7_OR, opcode: OR}
+	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_OR, func7: FUNC7_OR, opcode: OP}
 }
 
 func CreateXOR(rd int, rs1 int, rs2 int) RInstr {
-	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_XOR, func7: FUNC7_XOR, opcode: XOR}
+	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_XOR, func7: FUNC7_XOR, opcode: OP}
 }
 
 func CreateSLL(rd int, rs1 int, rs2 int) RInstr {
-	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SLL, func7: FUNC7_SLL, opcode: SLL}
+	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SLL, func7: FUNC7_SLL, opcode: OP}
 }
 
 func CreateSRA(rd int, rs1 int, rs2 int) RInstr {
-	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SRA, func7: FUNC7_SRA, opcode: SRA}
+	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SRA, func7: FUNC7_SRA, opcode: OP}
 }
 
 func CreateSRL(rd int, rs1 int, rs2 int) RInstr {
-	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SRL, func7: FUNC7_SRL, opcode: SRL}
+	return RInstr{rd: rd, rs1: rs1, rs2: rs2, func3: FUNC3_SRL, func7: FUNC7_SRL, opcode: OP}
 }
 
 func CreateJAL(imm int32, link_reg int) JInstr {
