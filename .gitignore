@@ -21,3 +21,5 @@
 go.work
 
 emu
+
+elf_files
