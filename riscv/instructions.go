@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 )
 
 const (
@@ -55,15 +56,23 @@ func (Inst InvalidInstrction) Execute(mem *Memory, regs *Registers) {
 }
 
 type RInstr struct {
+	func7  int8
 	rs2    int
 	rs1    int
+	func3  int8
 	rd     int
 	opcode int8
-	func3  int8
-	func7  int8
 }
 
-func DecodeRInstr(word uint32) IInstr { return IInstr{} }
+func (Instr RInstr) String() string {
+	return fmt.Sprintf("IInstr{func7=%d, rs2=%d, rs1=%d, func3=%d, rd=%d, opcode=%d}",
+		Instr.func7,
+		Instr.rs2,
+		Instr.rs1,
+		Instr.func3,
+		Instr.rd,
+		Instr.opcode)
+}
 
 // RInstr
 const (
@@ -164,7 +173,14 @@ type IInstr struct {
 	opcode int8
 }
 
-func DecodeIInstr(word uint32) IInstr { return IInstr{} }
+func (Instr IInstr) String() string {
+	return fmt.Sprintf("IInstr{imm=%d, rs1=%d, func3=%d, rd=%d, opcode=%d}",
+		Instr.imm,
+		Instr.rs1,
+		Instr.func3,
+		Instr.rd,
+		Instr.opcode)
+}
 
 func RegisterIInstr(registration_map *map[int8]int8) {
 	(*registration_map)[OP_IMM] = IInstrType
@@ -249,35 +265,64 @@ func op_imm_execute(Inst IInstr, _ *Memory, regs *Registers) error {
 }
 
 type SInstr struct {
-	imm   int
-	rs1   int
-	rs2   int
-	func3 int
+	imm1   uint32
+	rs2    uint32
+	rs1    uint32
+	func3  uint32
+	imm0   uint32
+	opcode uint32
 }
 
-func DecodeSInstr(word uint32) IInstr { return IInstr{} }
+func (Instr SInstr) String() string {
+	return fmt.Sprintf("IInstr{imm1=%d, rs2=%d, rs1=%d, func3=%d, imm0=%d, opcode=%d}",
+		Instr.imm1,
+		Instr.rs2,
+		Instr.rs1,
+		Instr.func3,
+		Instr.imm0,
+		Instr.opcode)
+}
 
 type BInstr struct {
-	imm1 int
-	imm2 int
-	imm3 int
-	imm4 int
-	rs1  int
-	rs2  int
+	imm3   uint32
+	imm2   uint32
+	rs2    uint32
+	rs1    uint32
+	func3  uint32
+	imm1   uint32
+	imm0   uint32
+	opcode uint32
 }
 
-func DecodeBInstr(word uint32) IInstr { return IInstr{} }
+func (Instr BInstr) String() string {
+	return fmt.Sprintf(
+		"IInstr{imm3=%d, imm2=%d, rs2=%d, rs1=%d, func3=%d, imm1=%d, imm0=%d, opcode=%d}",
+		Instr.imm3,
+		Instr.imm2,
+		Instr.rs2,
+		Instr.rs1,
+		Instr.func3,
+		Instr.imm1,
+		Instr.imm0,
+		Instr.opcode)
+}
 
 type UInstr struct {
-	imm1   int32 // 20 bit offset, I think it should be signed, or you can't jump backwards, but not sure.
+	imm    int32 // 20 bit offset, I think it should be signed, or you can't jump backwards, but not sure.
 	rd     int32
 	opcode int8
 }
 
-func DecodeUInstr(word uint32) IInstr { return IInstr{} }
+func (Instr UInstr) String() string {
+	return fmt.Sprintf(
+		"IInstr{imm=%d, rd=%d, opcode=%d",
+		Instr.imm,
+		Instr.rd,
+		Instr.opcode)
+}
 
 func (Inst UInstr) Execute(mem *Memory, regs *Registers) error {
-	imm1_shifted := Inst.imm1 << 12 // fill lowest 12 bits with zero
+	imm1_shifted := Inst.imm << 12 // fill lowest 12 bits with zero
 	switch Inst.opcode {
 	case AUIPC:
 		// AUIPC (add upper immediate to pc) is used to build pc-relative addresses and uses the U-type
@@ -299,15 +344,42 @@ func (Inst UInstr) Execute(mem *Memory, regs *Registers) error {
 }
 
 type JInstr struct {
-	imm0   int32 // 1 bit immediate
-	imm1   int32
-	imm2   int32
-	imm3   int32
+	imm3   uint32 // 1 bit
+	imm2   uint32 // 10
+	imm1   uint32 // 1 bit
+	imm0   uint32 // 8 bit immediate
 	rd     int
 	opcode int8
 }
 
-func DecodeJInstr(word uint32) IInstr { return IInstr{} }
+func (Instr JInstr) String() string {
+	return fmt.Sprintf(
+		"IInstr{(imm3=%d, imm2=%d, imm1=%d, imm0=%d) imm=%d, rd=%d, opcode=%d}",
+		Instr.imm3,
+		Instr.imm2,
+		Instr.imm1,
+		Instr.imm0,
+		Instr.Imm(),
+		Instr.rd,
+		Instr.opcode)
+}
+
+func (Instr JInstr) Imm() int32 {
+	// imm0 = 8 bit
+	// imm1 = 1 bits
+	// imm2 = 10 bit
+	// imm3 = 1 bit
+
+	// imm3::imm0::imm1::imm2
+	unsigned := (Instr.imm3 << (1 + 10 + 1 + 8)) +
+		(Instr.imm0 << (1 + 10 + 1)) +
+		(Instr.imm1 << (1 + 10)) +
+		(Instr.imm2 << 1)
+
+	signed := sext(unsigned, 20)
+
+	return ReinterpreteAsSigned(signed)
+}
 
 func (Instr JInstr) Execute(mem *Memory, regs *Registers) error {
 	if Instr.opcode == JAL {
@@ -317,16 +389,11 @@ func (Instr JInstr) Execute(mem *Memory, regs *Registers) error {
 		// JAL stores the address of the instruction following the jump (pc+4) into register rd. The standard
 		// software calling convention uses x1 as the return address register and x5 as an alternate link register.
 
-		jump_addr := (Instr.imm0 << (8 + 1 + 10)) +
-			(Instr.imm1 << (8 + 1)) +
-			(Instr.imm2 << 8) +
-			Instr.imm3
-
 		// save the next pc to the link register
 		regs.reg[Instr.rd] = regs.pc + 1
 
 		// jump to the new location
-		regs.pc = jump_addr
+		regs.pc = regs.pc + Instr.Imm()
 	}
 
 	return nil
@@ -339,8 +406,6 @@ type PInstr struct {
 	imm4 int
 	rsd  int
 }
-
-func DecodePInstr(word uint32) IInstr { return IInstr{} }
 
 func CreateADDI(src int, dst int, imm int32) IInstr {
 	return IInstr{rs1: dst, rd: src, imm: imm, func3: FUNC3_ADDI, opcode: OP_IMM}
@@ -368,11 +433,11 @@ func Nop() IInstr {
 }
 
 func CreateLui(imm int32, dst int32) UInstr {
-	return UInstr{imm1: imm, rd: dst, opcode: LUI}
+	return UInstr{imm: imm, rd: dst, opcode: LUI}
 }
 
 func CreateAUIPC(imm int32, dst int32) UInstr {
-	return UInstr{imm1: imm, rd: dst, opcode: AUIPC}
+	return UInstr{imm: imm, rd: dst, opcode: AUIPC}
 }
 
 func CreateADD(rd int, rs1 int, rs2 int) RInstr {
@@ -416,10 +481,22 @@ func CreateSRL(rd int, rs1 int, rs2 int) RInstr {
 }
 
 func CreateJAL(imm int32, link_reg int) JInstr {
-	imm0 := (imm >> (8 + 1 + 10)) & 1 // 1 bit
-	imm1 := (imm >> (8 + 1)) & 1023   // 10 bits long
-	imm2 := (imm >> 8) & 1            // 1 bit
-	imm3 := imm & 255                 // 8 bits long
+	if imm%2 == 1 {
+		panic("imm in jal must be an even number")
+	}
+
+	// imm0 = 8 bit
+	// imm1 = 1 bits
+	// imm2 = 10 bit
+	// imm3 = 1 bit
+
+	// imm3::imm0::imm1::imm2::0
+	// ..00001010
+	word := ReinterpreteAsUnsigned(imm)
+	imm0 := bitSliceBetween(word, 12, 19)
+	imm1 := bitSliceBetween(word, 11, 11)
+	imm2 := bitSliceBetween(word, 1, 10)
+	imm3 := bitSliceBetween(word, 20, 20)
 
 	return JInstr{imm0: imm0, imm1: imm1, imm2: imm2, imm3: imm3, rd: link_reg, opcode: JAL}
 }
