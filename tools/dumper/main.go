@@ -2,11 +2,12 @@ package main
 
 import (
 	"debug/elf"
+	"emu/riscv"
 	"flag"
 	"fmt"
 )
 
-func PrintExecutableCodeSection(s *elf.Section) {
+func PrintExecutableCodeSection(s *elf.Section, decoder *riscv.Decoder) {
 	data, err := s.Data()
 	if err != nil {
 		panic("Invalid section passed to print function.")
@@ -20,12 +21,22 @@ func PrintExecutableCodeSection(s *elf.Section) {
 		if i > 0 && cache_i == 3 {
 			// if we just read the last byte, fomat the instruction
 			fmt.Printf("prog[%d]=%x%x%x%x \n", i-3, cache[3], cache[2], cache[1], cache[0])
+			if decoder != nil {
+				word := riscv.ByteArrayToWord(cache)
+				instr, err := decoder.Decode(word)
+				if err != nil {
+					fmt.Printf("can't decode instruction with error: %v \n", err.Error())
+					return
+				}
+				fmt.Printf("decoded as %v \n", instr)
+			}
 		}
 	}
 }
 
 func main() {
 	file := flag.String("file", "", "Elf file with risc machine code in it.")
+	decodeInstr := flag.Bool("decode", true, "Decodes the instructions/")
 	flag.Parse()
 
 	if *file == "" {
@@ -54,7 +65,15 @@ func main() {
 		panic("Error: executable section not found. \n")
 	}
 	fmt.Printf("Printing out section[%d] \n", section_index)
-	PrintExecutableCodeSection(f.Sections[section_index])
+
+	var decoder *riscv.Decoder = nil
+	if *decodeInstr {
+		decoder = riscv.NewDecoder()
+		// at the moment no extensions are supported
+		decoder.RegisterBaseInstructionSet()
+		fmt.Printf("Decoding instructions of base instruction set\n")
+	}
+	PrintExecutableCodeSection(f.Sections[section_index], decoder)
 
 	f.Close()
 }

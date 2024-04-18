@@ -8,40 +8,24 @@ import (
 	"fmt"
 )
 
-func processExecutionBody(mem *riscv.Memory, r *riscv.Registers, executableData []byte) {
-	for i := 0; i < len(executableData); i = i + 4 {
-		registration_map := map[int8]int8{} // parse the 4 bytes left to right
-		riscv.RegisterIInstr(&registration_map)
-		riscv.RegisterRInstr(&registration_map)
-		word := uint32(0)
-		for j := 0; j < 4; j++ {
-			word = word | (uint32(executableData[i+j]) << (j * 8))
-
-			opcode := executableData[i] & uint8(63)
-			instrType, isRegistered := registration_map[int8(opcode)]
-			if !isRegistered {
-				panic(fmt.Sprintf("Unregistered opcode: %d", opcode))
+func processExecutionBody(mem *riscv.Memory, r *riscv.Registers, executableData []byte, decoder *riscv.Decoder) error {
+	var cache [4]byte
+	for i, b := range executableData {
+		cache_i := i % 4
+		cache[cache_i] = b
+		if i > 0 && cache_i == 3 {
+			// if we just read the last byte, fomat the instruction
+			if decoder != nil {
+				word := riscv.ByteArrayToWord(cache)
+				instr, err := decoder.Decode(word)
+				if err != nil {
+					return fmt.Errorf("can't decode instruction with error: %v", err.Error())
+				}
+				instr.Execute(mem, r)
 			}
-
-			var I riscv.Instruction
-			switch instrType {
-			case riscv.IInstrType:
-				I = riscv.DecodeIInstr(word)
-			case riscv.RInstrType:
-				I = riscv.DecodeRInstr(word)
-			case riscv.UInstrType:
-				I = riscv.DecodeUInstr(word)
-			case riscv.JInstrType:
-				I = riscv.DecodeJInstr(word)
-			default:
-				fmt.Printf("Cannot decode instr %d", word)
-			}
-			I.Execute(mem, r)
-
 		}
-		fmt.Printf("word=%d \n", word)
-		// execute the instruction
 	}
+	return nil
 }
 
 func main() {
@@ -60,6 +44,8 @@ func main() {
 
 	mem := riscv.NewMemory(100)
 	r := riscv.Registers{}
+	decoder := riscv.NewDecoder()
+	decoder.RegisterBaseInstructionSet()
 
 	for i, section := range f.Sections {
 		if section.Type == elf.SHT_PROGBITS {
@@ -69,7 +55,10 @@ func main() {
 				panic("Invalid section passed to print function.")
 			}
 
-			processExecutionBody(&mem, &r, data)
+			err = processExecutionBody(&mem, &r, data, decoder)
+			if err != nil {
+				fmt.Printf("Failed to process executable data with error: %v", err.Error())
+			}
 		}
 	}
 

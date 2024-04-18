@@ -1,5 +1,11 @@
 package riscv
 
+import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+)
+
 func DecodeIInstr(word uint32) IInstr {
 	imm := bitSliceBetween(word, 20, 31)
 	rs1 := bitSliceBetween(word, 15, 19)
@@ -16,7 +22,7 @@ func DecodeIInstr(word uint32) IInstr {
 	}
 }
 
-func DecodeSInstr(word uint32) SInstr {
+func DecodeSInstr(word uint32) Instruction {
 	imm1 := bitSliceBetween(word, 25, 31)
 	rs2 := bitSliceBetween(word, 20, 24)
 	rs1 := bitSliceBetween(word, 15, 19)
@@ -77,7 +83,7 @@ func DecodeUInstr(word uint32) UInstr {
 	}
 }
 
-func DecodeJInstr(word uint32) JInstr {
+func DecodeJInstr(word uint32) Instruction {
 	imm3 := bitSliceBetween(word, 31, 31) // 1 bit
 	imm2 := bitSliceBetween(word, 21, 30) // 10 bit
 	imm1 := bitSliceBetween(word, 20, 20) // 1 bit
@@ -94,7 +100,7 @@ func DecodeJInstr(word uint32) JInstr {
 		opcode: int8(opcode)}
 }
 
-func DecodeRInstr(word uint32) RInstr {
+func DecodeRInstr(word uint32) Instruction {
 	func7 := bitSliceBetween(word, 25, 31)
 	rs2 := bitSliceBetween(word, 20, 24)
 	rs1 := bitSliceBetween(word, 15, 19)
@@ -112,4 +118,76 @@ func DecodeRInstr(word uint32) RInstr {
 	}
 }
 
-func DecodePInstr(word uint32) IInstr { panic("Decoding of P instruction not implemented.") }
+func DecodePInstr(word uint32) Instruction { panic("Decoding of P instruction not implemented.") }
+
+type Decoder struct {
+	OpcodeToInstrType map[int8]int8
+}
+
+func NewDecoder() *Decoder {
+	d := new(Decoder)
+	d.OpcodeToInstrType = map[int8]int8{}
+
+	return d
+}
+
+func (d *Decoder) RegisterBaseInstructionSet() {
+	if d.OpcodeToInstrType == nil {
+		panic("invalid decoder no map present")
+	}
+	d.Register(OP_IMM, IInstrType)
+	d.Register(LUI, UInstrType)
+	d.Register(AUIPC, UInstrType)
+	d.Register(OP, RInstrType)
+	d.Register(JAL, JInstrType)
+	d.Register(JALR, IInstrType)
+	d.Register(BRANCH, IInstrType)
+	d.Register(LOAD, IInstrType)
+	d.Register(STORE, SInstrType)
+	d.Register(SYSTEM, IInstrType)
+	// d.Register(MISC_MEM, ??? ) -> TODO: add when implementin git
+
+}
+
+func (d *Decoder) Register(opcode int8, instrType int8) error {
+	unexpectedEntry, alreadyPresent := d.OpcodeToInstrType[opcode]
+	if alreadyPresent {
+		return fmt.Errorf("opcode %v already registered in decoder", ToStringInstrType(unexpectedEntry))
+	}
+	d.OpcodeToInstrType[opcode] = instrType
+
+	return nil
+}
+
+func ByteArrayToWord(wordArray [4]byte) uint32 {
+	word := uint32(0)
+
+	buf := bytes.NewBuffer(wordArray[:])
+	binary.Read(buf, binary.LittleEndian, &word) // write takes ownership of buf
+
+	return word
+}
+
+func (d Decoder) Decode(word uint32) (Instruction, error) {
+	opcode := int8(bitSliceBetween(word, 0, 6))
+	instrType, isPresent := d.OpcodeToInstrType[opcode]
+
+	if !isPresent {
+		return nil, fmt.Errorf("opcode (%v) not registered in the decoder", opcode)
+	}
+
+	switch instrType {
+	case RInstrType:
+		return DecodeRInstr(word), nil
+	case IInstrType:
+		return DecodeIInstr(word), nil
+	case SInstrType:
+		return DecodeSInstr(word), nil
+	case UInstrType:
+		return DecodeUInstr(word), nil
+	case JInstrType:
+		return DecodeJInstr(word), nil
+	}
+
+	return nil, fmt.Errorf("invalid instrtype(%v) ", ToStringInstrType(instrType))
+}

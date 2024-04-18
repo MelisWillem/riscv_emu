@@ -7,6 +7,25 @@ import (
 	"fmt"
 )
 
+func ToStringInstrType(instrType int8) string {
+	switch instrType {
+	case RInstrType:
+		return "RInstrType"
+	case IInstrType:
+		return "IInstrType"
+	case SInstrType:
+		return "SInstrType"
+	case UInstrType:
+		return "UInstrType"
+	case JInstrType:
+		return "JInstrType"
+	case IImmInstrType:
+		return "IImmInstrType"
+	default:
+		return fmt.Sprintf("Unknown InstrType (val=%v)", instrType)
+	}
+}
+
 const (
 	RInstrType    int8 = 1
 	IInstrType    int8 = 2
@@ -17,14 +36,17 @@ const (
 )
 
 const (
-	STORE  int8 = 0
-	LOAD   int8 = 2
-	OP_IMM int8 = 19
-	AUIPC  int8 = 23  // 0010111
-	OP     int8 = 51  // 0110011
-	LUI    int8 = 55  // 0110111
-	JAL    int8 = 111 // 1101111
-	JALR   int8 = 103 // 1100111
+	STORE    int8 = 0   // 0000011
+	MISC_MEM int8 = 15  // 0001111
+	OP_IMM   int8 = 19  // 0010011
+	AUIPC    int8 = 23  // 0010111
+	LOAD     int8 = 35  // 0100011
+	OP       int8 = 51  // 0110011
+	LUI      int8 = 55  // 0110111
+	BRANCH   int8 = 99  // 1100011
+	JALR     int8 = 103 // 1100111
+	JAL      int8 = 111 // 1101111
+	SYSTEM   int8 = 115 // 1110011
 )
 
 const (
@@ -46,13 +68,7 @@ const (
 
 type Instruction interface {
 	Execute(mem *Memory, regs *Registers) error
-}
-
-type InvalidInstrction struct {
-}
-
-func (Inst InvalidInstrction) Execute(mem *Memory, regs *Registers) {
-	panic("Trying to execute invalid instruction...")
+	String() string
 }
 
 type RInstr struct {
@@ -102,10 +118,6 @@ const (
 	FUNC7_SRA  int8 = 32 // 0100000
 
 )
-
-func RegisterRInstr(registration_map *map[int8]int8) {
-	(*registration_map)[OP] = RInstrType
-}
 
 func (Inst RInstr) Execute(mem *Memory, regs *Registers) error {
 	// ADD performs the addition of rs1 and rs2. SUB performs the subtraction of rs2 from rs1. Overflows
@@ -180,11 +192,6 @@ func (Instr IInstr) String() string {
 		Instr.func3,
 		Instr.rd,
 		Instr.opcode)
-}
-
-func RegisterIInstr(registration_map *map[int8]int8) {
-	(*registration_map)[OP_IMM] = IInstrType
-	(*registration_map)[JALR] = IInstrType
 }
 
 func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
@@ -283,6 +290,10 @@ func (Instr SInstr) String() string {
 		Instr.opcode)
 }
 
+func (Instr SInstr) Execute(mem *Memory, regs *Registers) error {
+	return errors.New("SInstr execute is not implemented")
+}
+
 type BInstr struct {
 	imm3   uint32
 	imm2   uint32
@@ -305,6 +316,10 @@ func (Instr BInstr) String() string {
 		Instr.imm1,
 		Instr.imm0,
 		Instr.opcode)
+}
+
+func (Instr BInstr) Execute(mem *Memory, regs *Registers) error {
+	return errors.New("BInstr execute is not implemented")
 }
 
 type UInstr struct {

@@ -151,3 +151,15 @@ func TestDecodeRInstr(t *testing.T) {
 		t.Fatalf("\nres=%s\nexpected=%s", res.String(), expected.String())
 	}
 }
+
+func TestByteArrayToWord(t *testing.T) {
+	var input = [4]byte{1, 0, 0, 0}
+	res := ByteArrayToWord(input)
+	expect := uint32(1)
+	Assert(t, res, expect)
+
+	input = [4]byte{0, 1, 0, 0}
+	res = ByteArrayToWord(input)
+	expect = uint32(256)
+	Assert(t, res, expect)
+}
