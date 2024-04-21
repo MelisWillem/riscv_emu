@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"log"
 )
 
 func DecodeIInstr(word uint32) IInstr {
@@ -118,7 +119,9 @@ func DecodeRInstr(word uint32) Instruction {
 	}
 }
 
-func DecodePInstr(word uint32) Instruction { panic("Decoding of P instruction not implemented.") }
+func DecodePInstr(word uint32) Instruction {
+	return nil
+}
 
 type Decoder struct {
 	OpcodeToInstrType map[int8]int8
@@ -133,7 +136,7 @@ func NewDecoder() *Decoder {
 
 func (d *Decoder) RegisterBaseInstructionSet() {
 	if d.OpcodeToInstrType == nil {
-		panic("invalid decoder no map present")
+		log.Panic("invalid decoder no map present")
 	}
 	d.Register(OP_IMM, IInstrType)
 	d.Register(LUI, UInstrType)

@@ -4,13 +4,13 @@ import (
 	"debug/elf"
 	"emu/riscv"
 	"flag"
-	"fmt"
+	"log"
 )
 
 func PrintExecutableCodeSection(s *elf.Section, decoder *riscv.Decoder) {
 	data, err := s.Data()
 	if err != nil {
-		panic("Invalid section passed to print function.")
+		log.Panic("Invalid section passed to print function.")
 	}
 
 	// No compressed instructions right now, so we can assume all instructions are 4 bytes wide
@@ -20,15 +20,15 @@ func PrintExecutableCodeSection(s *elf.Section, decoder *riscv.Decoder) {
 		cache[cache_i] = b
 		if i > 0 && cache_i == 3 {
 			// if we just read the last byte, fomat the instruction
-			fmt.Printf("prog[%d]=%x%x%x%x \n", i-3, cache[3], cache[2], cache[1], cache[0])
+			log.Printf("prog[%d]=%x%x%x%x \n", i-3, cache[3], cache[2], cache[1], cache[0])
 			if decoder != nil {
 				word := riscv.ByteArrayToWord(cache)
 				instr, err := decoder.Decode(word)
 				if err != nil {
-					fmt.Printf("can't decode instruction with error: %v \n", err.Error())
+					log.Printf("can't decode instruction with error: %v \n", err.Error())
 					return
 				}
-				fmt.Printf("decoded as %v \n", instr)
+				log.Printf("decoded as %v \n", instr)
 			}
 		}
 	}
@@ -46,13 +46,13 @@ func main() {
 
 	f, err := elf.Open(*file)
 	if err != nil {
-		panic(err.Error())
+		log.Panic(err.Error())
 	}
 
-	fmt.Printf("Elf file with machine string=%s \n", f.Machine.String())
+	log.Printf("Elf file with machine string=%s \n", f.Machine.String())
 	section_index := int(-1)
 	for i, section := range f.Sections {
-		fmt.Printf("section[%d] has name-%s with sectionType=%s(%d) \n", i, section.Name, section.Type.String(), section.Type)
+		log.Printf("section[%d] has name-%s with sectionType=%s(%d) \n", i, section.Name, section.Type.String(), section.Type)
 		if section.Type == elf.SHT_PROGBITS {
 			if section_index > 0 {
 				println("duplicate section type found")
@@ -62,16 +62,16 @@ func main() {
 	}
 
 	if section_index < 0 {
-		panic("Error: executable section not found. \n")
+		log.Panic("Error: executable section not found. \n")
 	}
-	fmt.Printf("Printing out section[%d] \n", section_index)
+	log.Printf("Printing out section[%d] \n", section_index)
 
 	var decoder *riscv.Decoder = nil
 	if *decodeInstr {
 		decoder = riscv.NewDecoder()
 		// at the moment no extensions are supported
 		decoder.RegisterBaseInstructionSet()
-		fmt.Printf("Decoding instructions of base instruction set\n")
+		log.Printf("Decoding instructions of base instruction set\n")
 	}
 	PrintExecutableCodeSection(f.Sections[section_index], decoder)
 

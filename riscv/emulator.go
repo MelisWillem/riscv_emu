@@ -1,7 +1,7 @@
 package riscv
 
 import (
-	"fmt"
+	"log"
 )
 
 type emulator struct {
@@ -10,11 +10,11 @@ type emulator struct {
 }
 
 func (e emulator) Start(program []Instruction) {
-	fmt.Println("Starting emulator...")
+	log.Println("Starting emulator...")
 	for index, inst := range program {
 		err := inst.Execute(&e.mem, &e.regs)
 		if err != nil {
-			fmt.Printf("Error at instruction %d with error=%s", index, err.Error())
+			log.Printf("Error at instruction %d with error=%s", index, err.Error())
 		}
 	}
 }

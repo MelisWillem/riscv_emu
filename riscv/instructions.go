@@ -5,7 +5,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log"
 )
+
+func unknowOpcodeError(opcode int8, InstrType int8) error {
+	return fmt.Errorf("uknown opcode=%v in InstrType=%v", opcode, ToStringInstrType(InstrType))
+}
 
 func ToStringInstrType(instrType int8) string {
 	switch instrType {
@@ -172,6 +177,8 @@ func (Inst RInstr) Execute(mem *Memory, regs *Registers) error {
 			unsigned_rd := unsigned_rs1 >> unsigned_rs2
 			regs.reg[Inst.rd] = ReinterpreteAsSigned(unsigned_rd)
 		}
+	} else {
+		return unknowOpcodeError(Inst.opcode, RInstrType)
 	}
 
 	return nil
@@ -208,7 +215,7 @@ func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
 	case OP_IMM:
 		return op_imm_execute(Inst, mem, regs)
 	default:
-		panic("Unknown operator type on IInstr")
+		return unknowOpcodeError(Inst.opcode, IInstrType)
 	}
 	return nil
 }
@@ -265,7 +272,7 @@ func op_imm_execute(Inst IInstr, _ *Memory, regs *Registers) error {
 		// so the sext makes sense here.
 		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] >> int32(Inst.imm)
 	default:
-		return errors.New("invalid op_imm instruction")
+		return fmt.Errorf("invalid func3(val=%v) value on op_imm instruction", Inst.func3)
 	}
 	regs.pc = regs.pc + 1
 	return nil
@@ -352,7 +359,7 @@ func (Inst UInstr) Execute(mem *Memory, regs *Registers) error {
 		regs.reg[Inst.rd] = imm1_shifted
 		regs.pc = regs.pc + 1
 	default:
-		panic("Unknown operator type on IInstr")
+		return unknowOpcodeError(Inst.opcode, UInstrType)
 	}
 	regs.pc = regs.pc + 1
 	return nil
@@ -409,6 +416,8 @@ func (Instr JInstr) Execute(mem *Memory, regs *Registers) error {
 
 		// jump to the new location
 		regs.pc = regs.pc + Instr.Imm()
+	} else {
+		return unknowOpcodeError(Instr.opcode, JInstrType)
 	}
 
 	return nil
@@ -497,7 +506,7 @@ func CreateSRL(rd int, rs1 int, rs2 int) RInstr {
 
 func CreateJAL(imm int32, link_reg int) JInstr {
 	if imm%2 == 1 {
-		panic("imm in jal must be an even number")
+		log.Panic("imm in jal must be an even number")
 	}
 
 	// imm0 = 8 bit

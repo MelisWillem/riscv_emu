@@ -5,10 +5,10 @@ import (
 	"debug/elf"
 	"emu/riscv"
 	"flag"
-	"fmt"
+	"log"
 )
 
-func processExecutionBody(mem *riscv.Memory, r *riscv.Registers, executableData []byte, decoder *riscv.Decoder) error {
+func processExecutionBody(mem *riscv.Memory, r *riscv.Registers, executableData []byte, decoder *riscv.Decoder) {
 	var cache [4]byte
 	for i, b := range executableData {
 		cache_i := i % 4
@@ -17,15 +17,19 @@ func processExecutionBody(mem *riscv.Memory, r *riscv.Registers, executableData 
 			// if we just read the last byte, fomat the instruction
 			if decoder != nil {
 				word := riscv.ByteArrayToWord(cache)
+				log.Printf("decoding instruction at byte offset %v", i-3)
 				instr, err := decoder.Decode(word)
 				if err != nil {
-					return fmt.Errorf("can't decode instruction with error: %v", err.Error())
+					log.Fatalf("can't decode instruction with error: %v", err.Error())
 				}
-				instr.Execute(mem, r)
+				log.Printf("executing instruction I=%s", instr.String())
+				err = instr.Execute(mem, r)
+				if err != nil {
+					log.Fatalf("can't execute instruction (%s) with error: %v", instr.String(), err.Error())
+				}
 			}
 		}
 	}
-	return nil
 }
 
 func main() {
@@ -39,26 +43,24 @@ func main() {
 
 	f, err := elf.Open(*file)
 	if err != nil {
-		panic(err.Error())
+		log.Panic(err.Error())
 	}
 
 	mem := riscv.NewMemory(100)
 	r := riscv.Registers{}
 	decoder := riscv.NewDecoder()
+	log.Println("Registering base instruction set in decoder")
 	decoder.RegisterBaseInstructionSet()
 
 	for i, section := range f.Sections {
 		if section.Type == elf.SHT_PROGBITS {
-			fmt.Printf("Executing bod of section %d with name %s \n", i, section.Name)
+			log.Printf("Executing body of section %d with name %s \n", i, section.Name)
 			data, err := section.Data()
 			if err != nil {
-				panic("Invalid section passed to print function.")
+				log.Panicf("Invalid section passed to print function.")
 			}
 
-			err = processExecutionBody(&mem, &r, data, decoder)
-			if err != nil {
-				fmt.Printf("Failed to process executable data with error: %v", err.Error())
-			}
+			processExecutionBody(&mem, &r, data, decoder)
 		}
 	}
 
