@@ -3,13 +3,16 @@ package riscv
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"log"
 )
 
-func unknowOpcodeError(opcode int8, InstrType int8) error {
-	return fmt.Errorf("uknown opcode=%v in InstrType=%v", opcode, ToStringInstrType(InstrType))
+func unknowOpcodeError(opcode int8, instrType int8) error {
+	return fmt.Errorf("uknown opcode=%v in InstrType=%v", opcode, ToStringInstrType(instrType))
+}
+
+func unknownFunc3Error(func3 int8, opcode int8, instrType int8) error {
+	return fmt.Errorf("uknown func3=%v in InstrType=%v with opcode=%v", func3, ToStringInstrType(instrType), opcode)
 }
 
 func ToStringInstrType(instrType int8) string {
@@ -201,6 +204,14 @@ func (Instr IInstr) String() string {
 		Instr.opcode)
 }
 
+const (
+	FUNC3_LB  int8 = 0
+	FUNC3_LH  int8 = 1
+	FUNC3_LW  int8 = 2
+	FUNC3_LBU int8 = 4
+	FUNC3_LHU int8 = 5
+)
+
 func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
 	switch Inst.opcode {
 	case JALR:
@@ -214,6 +225,37 @@ func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
 		regs.pc = regs.pc - (regs.pc % 2)
 	case OP_IMM:
 		return op_imm_execute(Inst, mem, regs)
+	case LOAD:
+		// Loads are encoded in the I-type format and stores are S-type. The effective address is obtained by
+		// adding register rs1 to the sign-extended 12-bit offset. Loads copy a value from memory to register rd.
+		// Stores copy the value in register rs2 to memory.
+		addr := regs.reg[Inst.rs1] + ReinterpreteAsSigned(sext(uint32(Inst.imm), 11))
+
+		var err error
+		var val uint32
+		switch Inst.func3 {
+		case FUNC3_LW:
+			// The LW instruction loads a 32-bit value from memory into rd.
+			val, err = mem.Load(uint32(addr), 4)
+		case FUNC3_LH:
+			// LH loads a 16-bit value from memory, then sign-extends to 32-bits before storing in rd.
+			val, err = mem.Load(uint32(addr), 2)
+			val = sext(val, 15)
+		case FUNC3_LHU:
+			// LHU loads a 16-bit value from memory but then zero extends to 32-bits before storing in rd.
+			val, err = mem.Load(uint32(addr), 2)
+		case FUNC3_LB:
+			// LB and LBU are defined analogously for 8-bit values.
+			val, err = mem.Load(uint32(addr), 1)
+			val = sext(val, 7)
+		case FUNC3_LBU:
+			val, err = mem.Load(uint32(addr), 1)
+		}
+
+		if err != nil {
+			return err
+		}
+		regs.reg[Inst.rd] = ReinterpreteAsSigned(val)
 	default:
 		return unknowOpcodeError(Inst.opcode, IInstrType)
 	}
@@ -280,25 +322,65 @@ func op_imm_execute(Inst IInstr, _ *Memory, regs *Registers) error {
 
 type SInstr struct {
 	imm1   uint32
-	rs2    uint32
-	rs1    uint32
-	func3  uint32
+	rs2    int
+	rs1    int
+	func3  int8
 	imm0   uint32
-	opcode uint32
+	opcode int8
+}
+
+func (Instr SInstr) imm() uint32 {
+	// imm0 -> offset[0:4]
+	// imm1 -> offset[5:11]
+	return Instr.imm0 + (Instr.imm1 << 5)
 }
 
 func (Instr SInstr) String() string {
-	return fmt.Sprintf("IInstr{imm1=%d, rs2=%d, rs1=%d, func3=%d, imm0=%d, opcode=%d}",
+	return fmt.Sprintf("IInstr{imm1=%d, rs2=%d, rs1=%d, func3=%d, imm0=%d, opcode=%d} with .imm()=%d",
 		Instr.imm1,
 		Instr.rs2,
 		Instr.rs1,
 		Instr.func3,
 		Instr.imm0,
-		Instr.opcode)
+		Instr.opcode,
+		Instr.imm())
 }
 
+const (
+	FUNC3_SB int8 = 0
+	FUNC3_SH int8 = 1
+	FUNC3_SW int8 = 2
+)
+
 func (Instr SInstr) Execute(mem *Memory, regs *Registers) error {
-	return errors.New("SInstr execute is not implemented")
+	switch Instr.opcode {
+	case STORE:
+		// Loads are encoded in the I-type format and stores are S-type. The effective address is obtained by
+		// adding register rs1 to the sign-extended 12-bit offset. Loads copy a value from memory to register rd.
+		// Stores copy the value in register rs2 to memory.
+		addr := regs.reg[Instr.rs1] + ReinterpreteAsSigned(sext(Instr.imm(), 11))
+		var val uint32
+		var err error
+		switch Instr.func3 {
+		// The SW, SH, and SB instructions store 32-bit, 16-bit, and 8-bit values from the low bits of register
+		// rs2 to memory
+		case FUNC3_SB:
+			val, err = mem.Load(uint32(addr), 1)
+		case FUNC3_SH:
+			val, err = mem.Load(uint32(addr), 2)
+		case FUNC3_SW:
+			val, err = mem.Load(uint32(addr), 4)
+		default:
+
+			return unknownFunc3Error(Instr.func3, Instr.opcode, SInstrType)
+		}
+
+		if err != nil {
+			return err
+		}
+		regs.reg[Instr.rs2] = ReinterpreteAsSigned(val)
+	}
+	return unknowOpcodeError(Instr.opcode, SInstrType)
 }
 
 type BInstr struct {
@@ -309,7 +391,7 @@ type BInstr struct {
 	func3  uint32
 	imm1   uint32
 	imm0   uint32
-	opcode uint32
+	opcode int8
 }
 
 func (Instr BInstr) String() string {
@@ -325,8 +407,64 @@ func (Instr BInstr) String() string {
 		Instr.opcode)
 }
 
+const (
+	FUNC3_BEQ  uint32 = 0
+	FUNC3_BNE  uint32 = 1
+	FUNC3_BLT  uint32 = 4
+	FUNC3_BLTU uint32 = 6
+	FUNC3_BGE  uint32 = 5
+	FUNC3_BGEU uint32 = 7
+)
+
 func (Instr BInstr) Execute(mem *Memory, regs *Registers) error {
-	return errors.New("BInstr execute is not implemented")
+	offset := ReinterpreteAsSigned(sext(Instr.imm(), 11))
+	// rs1 and rs2 are stored as uint32, but in this case they represent
+	// a signed number. By shifting we can remove the sign bit before comparing
+	// and so get an unsigned expressed
+	rs1_unsigned := (Instr.rs1 << 1) >> 1
+	rs2_unsigned := (Instr.rs1 << 1) >> 1
+
+	// If the comparison is gte/tle then we need to take into
+	// the sign bit:
+	rs1_signed := ReinterpreteAsSigned(Instr.rs1)
+	rs2_signed := ReinterpreteAsSigned(Instr.rs2)
+
+	switch Instr.func3 {
+	// BEQ and BNE take the branch if registers rs1 and rs2
+	// are equal or unequal respectively.
+	case FUNC3_BEQ:
+		if regs.reg[Instr.rs1] == regs.reg[Instr.rs2] {
+			regs.pc = regs.pc + offset
+		}
+	case FUNC3_BNE:
+		if regs.reg[Instr.rs1] != regs.reg[Instr.rs2] {
+			regs.pc = regs.pc + offset
+		}
+	// BLT and BLTU take the branch if rs1 is less than rs2, using
+	// signed and unsigned comparison respectively.
+	case FUNC3_BLT:
+		if regs.reg[rs1_signed] < regs.reg[rs2_signed] {
+			regs.pc = regs.pc + offset
+		}
+	case FUNC3_BLTU:
+		if regs.reg[rs1_unsigned] < regs.reg[rs2_unsigned] {
+			regs.pc = regs.pc + offset
+		}
+	// BGE and BGEU take the branch if rs1 is greater
+	// than or equal to rs2, using signed and unsigned comparison respectively.
+	case FUNC3_BGE:
+		if regs.reg[rs1_signed] >= regs.reg[rs2_signed] {
+			regs.pc = regs.pc + offset
+		}
+	case FUNC3_BGEU:
+		if regs.reg[rs1_unsigned] >= regs.reg[rs2_unsigned] {
+			regs.pc = regs.pc + offset
+		}
+	default:
+		return fmt.Errorf("invalid func3(val=%v) on BInstr", Instr.func3)
+	}
+
+	return nil
 }
 
 type UInstr struct {
@@ -531,4 +669,101 @@ func CreateJ(imm int32) JInstr {
 
 func CreateJALR(imm int32, link_reg int, addr_reg int) IInstr {
 	return IInstr{imm: imm, rd: link_reg, opcode: JALR, rs1: addr_reg}
+}
+
+// Private function, for internal use only.
+func createBRANCH(imm uint32, rs1 uint32, rs2 uint32, func3 uint32) BInstr {
+	// split up the immediate
+	// imm0: 1 bit -> 11
+	// imm1: 4 bit -> 4:1
+	// imm2: 6 bit -> 10:5
+	// imm3: 1 bit -> 12
+	imm0 := bitSliceBetween(imm, 11, 11)
+	imm1 := bitSliceBetween(imm, 1, 4)
+	imm2 := bitSliceBetween(imm, 5, 10)
+	imm3 := bitSliceBetween(imm, 12, 12)
+
+	return BInstr{imm3: imm3, imm2: imm2, rs2: rs2, rs1: rs1, func3: func3, imm1: imm1, imm0: imm0, opcode: BRANCH}
+}
+
+func CreateBEQ(imm uint32, rs1 uint32, rs2 uint32) BInstr {
+	return createBRANCH(imm, rs1, rs2, FUNC3_BEQ)
+}
+
+func CreateBNE(imm uint32, rs1 uint32, rs2 uint32) BInstr {
+	return createBRANCH(imm, rs1, rs2, FUNC3_BNE)
+}
+
+func CreateBGE(imm uint32, rs1 uint32, rs2 uint32) BInstr {
+	return createBRANCH(imm, rs1, rs2, FUNC3_BGE)
+}
+
+func CreateBGEU(imm uint32, rs1 uint32, rs2 uint32) BInstr {
+	return createBRANCH(imm, rs1, rs2, FUNC3_BGEU)
+}
+
+func CreateBLT(imm uint32, rs1 uint32, rs2 uint32) BInstr {
+	return createBRANCH(imm, rs1, rs2, FUNC3_BLT)
+}
+
+func CreateBLTU(imm uint32, rs1 uint32, rs2 uint32) BInstr {
+	return createBRANCH(imm, rs1, rs2, FUNC3_BLTU)
+}
+
+func CreateLoad(offset int32, addr int, func3 int8, dst int) IInstr {
+	return IInstr{
+		imm:    offset,
+		rs1:    addr,
+		func3:  func3,
+		rd:     dst,
+		opcode: LOAD,
+	}
+}
+
+func CreateLW(offset int32, addr int, dst int) IInstr {
+	return CreateLoad(offset, addr, FUNC3_LW, dst)
+}
+
+func CreateLH(offset int32, addr int, dst int) IInstr {
+	return CreateLoad(offset, addr, FUNC3_LH, dst)
+}
+
+func CreateLB(offset int32, addr int, dst int) IInstr {
+	return CreateLoad(offset, addr, FUNC3_LB, dst)
+}
+
+func CreateStore(offset int32, src int, base int, func3 int8) SInstr {
+	// imm1   uint32
+	// rs2    uint32
+	// rs1    uint32
+	// func3  int8
+	// imm0   uint32
+	// opcode int8
+
+	offset_unsigned := ReinterpreteAsUnsigned(offset)
+	// imm0 -> offset[0:4]
+	// imm1 -> offset[5:11]
+	imm0 := (offset_unsigned << (32 - 5)) >> (32 - 5)
+	imm1 := offset_unsigned >> 5
+
+	return SInstr{
+		imm1:   imm1,
+		rs2:    src,
+		rs1:    base,
+		func3:  func3,
+		imm0:   imm0,
+		opcode: STORE,
+	}
+}
+
+func CreateSB(offset int32, src int, base int) SInstr {
+	return CreateStore(offset, src, base, FUNC3_SB)
+}
+
+func CreateSH(offset int32, src int, base int) SInstr {
+	return CreateStore(offset, src, base, FUNC3_SH)
+}
+
+func CreateSW(offset int32, src int, base int) SInstr {
+	return CreateStore(offset, src, base, FUNC3_SW)
 }
