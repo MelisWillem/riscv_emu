@@ -25,8 +25,8 @@ func DecodeIInstr(word uint32) IInstr {
 
 func DecodeSInstr(word uint32) Instruction {
 	imm1 := bitSliceBetween(word, 25, 31)
-	rs2 := bitSliceBetween(word, 20, 24)
-	rs1 := bitSliceBetween(word, 15, 19)
+	rs2 := int(bitSliceBetween(word, 20, 24))
+	rs1 := int(bitSliceBetween(word, 15, 19))
 	func3 := bitSliceBetween(word, 12, 14)
 	imm0 := bitSliceBetween(word, 7, 11)
 	opcode := bitSliceBetween(word, 0, 6)
@@ -35,17 +35,28 @@ func DecodeSInstr(word uint32) Instruction {
 		imm1:   imm1,
 		rs2:    rs2,
 		rs1:    rs1,
-		func3:  func3,
+		func3:  int8(func3),
 		imm0:   imm0,
-		opcode: opcode,
+		opcode: int8(opcode),
 	}
 }
 
+func (Instr BInstr) immSigned() int32 {
+	// 12 bit imm so sign bit on position 11
+	sext_imm := sext(Instr.imm(), 11)
+	return ReinterpreteAsSigned(sext_imm)
+}
+
 func (Instr BInstr) imm() uint32 {
-	return Instr.imm0 +
-		(Instr.imm1 << 1) +
-		(Instr.imm2 << (4 + 1)) +
-		(Instr.imm3 << (4 + 1 + 6))
+	// 12 bit
+	// imm0: 1 bit -> 11
+	// imm1: 4 bit -> 4:1
+	// imm2: 6 bit -> 10:5
+	// imm3: 1 bit -> 12
+	return (Instr.imm1 << 1) +
+		(Instr.imm2 << (1 + 4)) +
+		(Instr.imm0 << (1 + 4 + 6)) +
+		(Instr.imm3 << (1 + 4 + 6 + 1))
 }
 
 func DecodeBInstr(word uint32) BInstr {
@@ -68,7 +79,7 @@ func DecodeBInstr(word uint32) BInstr {
 		func3:  func3,
 		imm1:   imm1,
 		imm0:   imm0,
-		opcode: opcode,
+		opcode: int8(opcode),
 	}
 }
 

@@ -298,3 +298,66 @@ func TestJALR(t *testing.T) {
 	// 10 + 15 = 25 -> setting least-sign to 0 results in 24
 	CheckPc(24, &r, t)
 }
+
+func TestBEQ(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(0)
+
+	offset := ReinterpreteAsUnsigned(int32(10))
+	begin_pc := int32(5)
+
+	r.reg[1] = 1
+	r.reg[2] = 2
+	r.reg[3] = 1
+
+	r.pc = begin_pc
+
+	I := CreateBEQ(offset, 1, 2)
+	Assert(t, offset, I.imm())
+
+	I.Execute(&mem, &r)
+
+	// x1 != x2 -> should not branch
+	CheckPc(begin_pc, &r, t)
+
+	// x1 == x3 -> should branch
+	I = CreateBEQ(offset, 1, 3)
+	I.Execute(&mem, &r)
+
+	CheckPc(begin_pc+10, &r, t)
+}
+
+func TestCreateStoreOffset(t *testing.T) {
+	inputs := []int32{0, 31, 63}
+
+	for _, offset := range inputs {
+		I := CreateStore(offset, 0, 0, 0)
+
+		if offset < 32 && I.imm() != I.imm0 {
+			t.Logf("I.imm()=%d and I.imm0=%d", I.imm(), I.imm0)
+			t.Fail()
+		}
+
+		if I.imm() != uint32(offset) {
+			t.Logf("I.imm()!=offset I.Imm()=%d and offset=%d imm0=%d imm1=%d", I.imm(), offset, I.imm0, I.imm1)
+			t.Fail()
+		}
+	}
+}
+
+func TestSWLW(t *testing.T) {
+	r := Registers{}
+	mem := NewMemory(10)
+
+	offset := int32(10)
+	addrReg := 0
+	dstReg := 1
+
+	r.reg[addrReg] = 1
+
+	IStore := CreateSW(offset, addrReg, dstReg)
+	IStore.Execute(&mem, &r)
+
+	ILoad := CreateLW(offset, addrReg, dstReg)
+	ILoad.Execute(&mem, &r)
+}

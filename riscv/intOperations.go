@@ -39,3 +39,7 @@ func IntAbs(in int32) int32 {
 	}
 	return in
 }
+
+func pow(num uint32, power uint32) uint32 {
+	return uint32(math.Round(math.Pow(float64(num), float64(power))))
+}

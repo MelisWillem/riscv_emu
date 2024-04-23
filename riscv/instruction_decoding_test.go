@@ -25,11 +25,11 @@ func TestDecodeSInstr(t *testing.T) {
 	// sw x1, 3(x2)
 	sw_encoded := uint32(1122723)
 	imm1 := uint32(0)
-	rs2 := uint32(1)
-	rs1 := uint32(2)
-	func3 := uint32(2)
+	rs2 := 1
+	rs1 := 2
+	func3 := int8(2)
 	imm0 := uint32(3)
-	opcode := uint32(35)
+	opcode := int8(35)
 	expected := SInstr{
 		imm1:   imm1,
 		rs2:    rs2,
@@ -47,27 +47,33 @@ func TestDecodeSInstr(t *testing.T) {
 
 func TestDecodeBInstr(t *testing.T) {
 	// beq x1, x2, -16
-	imm3 := uint32(1)
-	imm2 := uint32(63)
-	rs2 := uint32(2)
-	rs1 := uint32(1)
-	func3 := uint32(0)
-	imm1 := uint32(8)
-	imm0 := uint32(1)
-	opcode := uint32(99)
+	expected := CreateBEQ(ReinterpreteAsUnsigned(-16), 1, 2)
 
-	expected := BInstr{
-		imm3,
-		imm2,
-		rs2,
-		rs1,
-		func3,
-		imm1,
-		imm0,
-		opcode}
+	// bit 12: 1
+	if expected.imm3 != 1 {
+		t.Fatalf("Imm3 is equal to %d but should be %d", expected.imm3, 1)
+	}
+	// bit 11: 1
+	if expected.imm0 != 1 {
+		t.Fatalf("Imm0 is equal to %d but should be %d", expected.imm0, 1)
+	}
+	// bit 10-5: 111111=63
+	if expected.imm2 != 63 {
+		t.Fatalf("Imm2 is equal to %d but should be %d", expected.imm2, 63)
+	}
+	// bit 4-1: 1000
+	if expected.imm1 != 8 {
+		t.Fatalf("Imm1 is equal to %d but should be %d", expected.imm1, 8)
+	}
+	// total=1111111110000=8176
 
-	if expected.imm() != 4081 {
-		t.Fatalf("expected.imm()(val=%d) != 4081", expected.imm())
+	expected_imm := uint32(8176)
+	if expected.imm() != expected_imm {
+		t.Fatalf("expected.imm()(val=%d) != %d", expected.imm(), expected_imm)
+	}
+
+	if expected.immSigned() != -16 {
+		t.Fatalf("expected.immSigned()(val=%d) != %d", expected.immSigned(), -16)
 	}
 
 	bqe_encoded := uint32(4263545059)
