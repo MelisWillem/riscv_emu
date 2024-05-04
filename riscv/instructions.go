@@ -1,8 +1,6 @@
 package riscv
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"log"
 )
@@ -141,8 +139,8 @@ func (Inst RInstr) Execute(mem *Memory, regs *Registers) error {
 			// SLT and SLTU perform signed and unsigned compares respectively, writing 1 to rd if rs1 < rs2, 0 otherwise. Note
 			// SLTU rd, x0, rs2 sets rd to 1 if rs2 is not equal to zero, otherwise sets rd to zero (assembler
 			// pseudoinstruction SNEZ rd, rs).
-			unsigned_rs1 := IntAbs(regs.reg[Inst.rs1])
-			unsigned_rs2 := IntAbs(regs.reg[Inst.rs2])
+			unsigned_rs1 := IntAbs(ReinterpreteAsSigned(regs.reg[Inst.rs1]))
+			unsigned_rs2 := IntAbs(ReinterpreteAsSigned(regs.reg[Inst.rs2]))
 			if unsigned_rs1 < unsigned_rs2 {
 				regs.reg[Inst.rd] = 1
 			} else {
@@ -165,20 +163,20 @@ func (Inst RInstr) Execute(mem *Memory, regs *Registers) error {
 			// SLL, SRL, and SRA perform logical left, logical right, and arithmetic right shifts on the value in
 			// register rs1 by the shift amount held in the lower 5 bits of register rs2.
 			// 11111=31
-			filter_5_bit := int32(31)
+			filter_5_bit := uint32(31)
 			regs.reg[Inst.rd] = regs.reg[Inst.rs1] << regs.reg[Inst.rs2] & filter_5_bit
 		} else if Inst.func7 == FUNC7_SRA && Inst.func3 == FUNC3_SRA {
 			// arithmetic shift so keep the sign
-			filter_5_bit := int32(31)
+			filter_5_bit := uint32(31)
 			regs.reg[Inst.rd] = regs.reg[Inst.rs1] >> (regs.reg[Inst.rs2] & filter_5_bit)
 		} else if Inst.func7 == FUNC7_SRL && Inst.func3 == FUNC3_SRL {
 			filter_5_bit := uint32(31)
 			// logical one, so we need to convert to unsigned first
-			unsigned_rs1 := ReinterpreteAsUnsigned(regs.reg[Inst.rs1])
+			unsigned_rs1 := regs.reg[Inst.rs1]
 			unsigned_rs2 := uint32(regs.reg[Inst.rs2]) & filter_5_bit
 
 			unsigned_rd := unsigned_rs1 >> unsigned_rs2
-			regs.reg[Inst.rd] = ReinterpreteAsSigned(unsigned_rd)
+			regs.reg[Inst.rd] = unsigned_rd
 		}
 	} else {
 		return unknowOpcodeError(Inst.opcode, RInstrType)
@@ -188,7 +186,7 @@ func (Inst RInstr) Execute(mem *Memory, regs *Registers) error {
 }
 
 type IInstr struct {
-	imm    int32
+	imm    uint32
 	rs1    int
 	func3  int8
 	rd     int
@@ -229,7 +227,7 @@ func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
 		// Loads are encoded in the I-type format and stores are S-type. The effective address is obtained by
 		// adding register rs1 to the sign-extended 12-bit offset. Loads copy a value from memory to register rd.
 		// Stores copy the value in register rs2 to memory.
-		addr := regs.reg[Inst.rs1] + ReinterpreteAsSigned(sext(uint32(Inst.imm), 11))
+		addr := regs.reg[Inst.rs1] + sext(uint32(Inst.imm), 11)
 
 		var err error
 		var val uint32
@@ -255,7 +253,7 @@ func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
 		if err != nil {
 			return err
 		}
-		regs.reg[Inst.rd] = ReinterpreteAsSigned(val)
+		regs.reg[Inst.rd] = val
 	default:
 		return unknowOpcodeError(Inst.opcode, IInstrType)
 	}
@@ -268,7 +266,7 @@ func op_imm_execute(Inst IInstr, _ *Memory, regs *Registers) error {
 		// ADDI adds the sign-extended 12-bit immediate to register rs1. Arithmetic overflow is ignored and
 		// the result is simply the low XLEN bits of the result. ADDI rd, rs1, 0 is used to implement the MV
 		// rd, rs1 assembler pseudoinstruction.
-		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] + int32(Inst.imm)
+		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] + Inst.imm
 	case FUNC3_SLTI:
 		// SLTI (set less than immediate) places the value 1 in register rd if register rs1 is less than the sign-
 		// extended immediate when both are treated as signed numbers, else 0 is written to rd. SLTIU is
@@ -282,37 +280,40 @@ func op_imm_execute(Inst IInstr, _ *Memory, regs *Registers) error {
 		// ANDI, ORI, XORI are logical operations that perform bitwise AND, OR, and XOR on register rs1
 		// and the sign-extended 12-bit immediate and place the result in rd. Note, XORI rd, rs1, -1 performs
 		// a bitwise logical inversion of register rs1 (assembler pseudoinstruction NOT rd, rs).
-		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] & int32(Inst.imm)
+		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] & Inst.imm
 	case FUNC3_ORI:
-		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] | int32(Inst.imm)
+		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] | Inst.imm
 	case FUNC3_XORI:
-		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] ^ int32(Inst.imm)
+		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] ^ Inst.imm
 	case FUNC3_SLLI:
 		// SLLI is a logical left shift (zeros are shifted into the lower bits)
-		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] << int32(Inst.imm)
+		imm_static := bitSliceBetween(Inst.imm, 5, 11)
+		if imm_static != 0 {
+			return fmt.Errorf("invalid SLLI instruction, the imm[11:5] should be equal to 0 but is %d", imm_static)
+		}
+		imm_shamt := bitSliceBetween(Inst.imm, 0, 4)
+		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] << int32(imm_shamt)
 	case FUNC3_SRLI:
 		// SRLI is a logical right shift (zeros are shifted into the upper bits);
 		// A logical shift also shifts the sign bit, we convert to unsigned
 		// in there to make sure the shift also shifts the sign bit.
-
-		buf := new(bytes.Buffer)
-		shift := uint32(0)
-
-		// convert to unsigned
-		binary.Write(buf, binary.LittleEndian, regs.reg[Inst.rd])
-		binary.Read(buf, binary.LittleEndian, &shift)
-
-		// shift it
-		shift = shift >> uint32(Inst.imm)
-
-		// convert back to signed
-		binary.Write(buf, binary.LittleEndian, shift)
-		binary.Read(buf, binary.LittleEndian, &regs.reg[Inst.rs1])
+		imm_static := bitSliceBetween(Inst.imm, 5, 11)
+		if imm_static != 0 {
+			return fmt.Errorf("invalid SRLI instruction, the imm[11:5] should be equal to 0 but is %d", imm_static)
+		}
+		imm_shamt := bitSliceBetween(Inst.imm, 0, 4)
+		regs.reg[Inst.rs1] = regs.reg[Inst.rd] >> imm_shamt
 	case FUNC3_SRAI:
 		// SRAI is an arithmetic right shift (the original sign bit is copied into the vacated upper bits)
-		// we don't cap the input as the sign bit should not be shifted here.
+		// We don't cap the input as the sign bit should not be shifted here.
 		// so the sext makes sense here.
-		regs.reg[Inst.rs1] = regs.reg[(Inst.rd)] >> int32(Inst.imm)
+		imm_static := bitSliceBetween(Inst.imm, 5, 11)
+		if imm_static != 32 {
+			return fmt.Errorf("invalid SRLI instruction, the imm[11:5] should be equal to 32 but is %d", imm_static)
+		}
+		imm_shamt := bitSliceBetween(Inst.imm, 0, 4)
+		val := ReinterpreteAsSigned(regs.reg[Inst.rd]) >> int32(imm_shamt)
+		regs.reg[Inst.rs1] = ReinterpreteAsUnsigned(val)
 	default:
 		return fmt.Errorf("invalid func3(val=%v) value on op_imm instruction", Inst.func3)
 	}
@@ -358,7 +359,7 @@ func (Instr SInstr) Execute(mem *Memory, regs *Registers) error {
 		// Loads are encoded in the I-type format and stores are S-type. The effective address is obtained by
 		// adding register rs1 to the sign-extended 12-bit offset. Loads copy a value from memory to register rd.
 		// Stores copy the value in register rs2 to memory.
-		addr := regs.reg[Instr.rs1] + ReinterpreteAsSigned(sext(Instr.imm(), 11))
+		addr := regs.reg[Instr.rs1] + sext(Instr.imm(), 11)
 		var val uint32
 		var err error
 		switch Instr.func3 {
@@ -378,7 +379,7 @@ func (Instr SInstr) Execute(mem *Memory, regs *Registers) error {
 		if err != nil {
 			return err
 		}
-		regs.reg[Instr.rs2] = ReinterpreteAsSigned(val)
+		regs.reg[Instr.rs2] = val
 	}
 	return unknowOpcodeError(Instr.opcode, SInstrType)
 }
@@ -417,7 +418,7 @@ const (
 )
 
 func (Instr BInstr) Execute(mem *Memory, regs *Registers) error {
-	offset := ReinterpreteAsSigned(sext(Instr.imm(), 11))
+	offset := sext(Instr.imm(), 11)
 	// rs1 and rs2 are stored as uint32, but in this case they represent
 	// a signed number. By shifting we can remove the sign bit before comparing
 	// and so get an unsigned expressed
@@ -468,7 +469,7 @@ func (Instr BInstr) Execute(mem *Memory, regs *Registers) error {
 }
 
 type UInstr struct {
-	imm    int32 // 20 bit offset, I think it should be signed, or you can't jump backwards, but not sure.
+	imm    uint32 // 20 bit offset
 	rd     int32
 	opcode int8
 }
@@ -524,7 +525,7 @@ func (Instr JInstr) String() string {
 		Instr.opcode)
 }
 
-func (Instr JInstr) Imm() int32 {
+func (Instr JInstr) Imm() uint32 {
 	// imm0 = 8 bit
 	// imm1 = 1 bits
 	// imm2 = 10 bit
@@ -538,7 +539,7 @@ func (Instr JInstr) Imm() int32 {
 
 	signed := sext(unsigned, 20)
 
-	return ReinterpreteAsSigned(signed)
+	return signed
 }
 
 func (Instr JInstr) Execute(mem *Memory, regs *Registers) error {
@@ -569,19 +570,23 @@ type PInstr struct {
 	rsd  int
 }
 
-func CreateADDI(src int, dst int, imm int32) IInstr {
+func CreateADDI(src int, dst int, imm uint32) IInstr {
 	return IInstr{rs1: dst, rd: src, imm: imm, func3: FUNC3_ADDI, opcode: OP_IMM}
 }
 
-func CreateSLLI(src int, dst int, imm int32) IInstr {
+func CreateSLLI(src int, dst int, imm uint32) IInstr {
 	return IInstr{rs1: dst, rd: src, imm: imm, func3: FUNC3_SLLI, opcode: OP_IMM}
 }
 
-func CreateSLRI(src int, dst int, imm int32) IInstr {
+func CreateSLRI(src int, dst int, imm uint32) IInstr {
 	return IInstr{rs1: dst, rd: src, imm: imm, func3: FUNC3_SRLI, opcode: OP_IMM}
 }
 
-func CreateSRAI(src int, dst int, imm int32) IInstr {
+func CreateSRAI(src int, dst int, imm uint32) IInstr {
+	if imm > 31 {
+		panic("Invalid SRAI, the immediate should not be bigger then 31")
+	}
+	imm = imm + (32 << 5)
 	return IInstr{rs1: dst, rd: src, imm: imm, func3: FUNC3_SRAI, opcode: OP_IMM}
 }
 
@@ -595,11 +600,11 @@ func Nop() IInstr {
 }
 
 func CreateLui(imm int32, dst int32) UInstr {
-	return UInstr{imm: imm, rd: dst, opcode: LUI}
+	return UInstr{imm: ReinterpreteAsUnsigned(imm), rd: dst, opcode: LUI}
 }
 
 func CreateAUIPC(imm int32, dst int32) UInstr {
-	return UInstr{imm: imm, rd: dst, opcode: AUIPC}
+	return UInstr{imm: ReinterpreteAsUnsigned(imm), rd: dst, opcode: AUIPC}
 }
 
 func CreateADD(rd int, rs1 int, rs2 int) RInstr {
@@ -667,7 +672,7 @@ func CreateJ(imm int32) JInstr {
 	return CreateJAL(imm, reg_zero)
 }
 
-func CreateJALR(imm int32, link_reg int, addr_reg int) IInstr {
+func CreateJALR(imm uint32, link_reg int, addr_reg int) IInstr {
 	return IInstr{imm: imm, rd: link_reg, opcode: JALR, rs1: addr_reg}
 }
 
@@ -712,7 +717,7 @@ func CreateBLTU(imm uint32, rs1 uint32, rs2 uint32) BInstr {
 
 func CreateLoad(offset int32, addr int, func3 int8, dst int) IInstr {
 	return IInstr{
-		imm:    offset,
+		imm:    ReinterpreteAsUnsigned(offset),
 		rs1:    addr,
 		func3:  func3,
 		rd:     dst,

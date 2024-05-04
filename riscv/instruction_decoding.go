@@ -15,7 +15,7 @@ func DecodeIInstr(word uint32) IInstr {
 	opcode := bitSliceBetween(word, 0, 6)
 
 	return IInstr{
-		imm:    int32(sext(imm, 12)),
+		imm:    sext(imm, 12),
 		rs1:    int(rs1),
 		func3:  int8(func3),
 		rd:     int(rd),
@@ -89,7 +89,7 @@ func DecodeUInstr(word uint32) UInstr {
 	opcode := bitSliceBetween(word, 0, 6)
 
 	return UInstr{
-		imm:    ReinterpreteAsSigned(sext(imm, 12)),
+		imm:    sext(imm, 12),
 		rd:     int32(rd),
 		opcode: int8(opcode),
 	}

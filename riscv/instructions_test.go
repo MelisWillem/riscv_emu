@@ -4,14 +4,14 @@ import (
 	"testing"
 )
 
-func CheckReg(regIndex int, expected int32, r *Registers, t *testing.T) {
+func CheckReg(regIndex int, expected uint32, r *Registers, t *testing.T) {
 	if r.reg[regIndex] != expected {
 		t.Logf("reg[%d]==%d and should be %d", regIndex, r.reg[regIndex], expected)
 		t.Fail()
 	}
 }
 
-func CheckPc(expected int32, r *Registers, t *testing.T) {
+func CheckPc(expected uint32, r *Registers, t *testing.T) {
 	if r.pc != expected {
 		t.Logf("pc==%d and should be %d", r.pc, expected)
 		t.Fail()
@@ -27,7 +27,7 @@ func TestAddI(t *testing.T) {
 
 	r.reg[0] = 4
 	addi.Execute(&mem, &r)
-	expected := int32(6)
+	expected := uint32(6)
 	CheckReg(1, expected, &r, t)
 }
 
@@ -39,7 +39,7 @@ func TestSLLI(t *testing.T) {
 	addi := CreateSLLI(0, 1, 2)
 
 	r.reg[0] = 8
-	expected := int32(32)
+	expected := uint32(32)
 	addi.Execute(&mem, &r)
 	CheckReg(1, expected, &r, t)
 }
@@ -52,7 +52,7 @@ func TestSRLI(t *testing.T) {
 	addi := CreateSLRI(0, 1, 2)
 
 	r.reg[0] = 8
-	expected := int32(2)
+	expected := uint32(2)
 	addi.Execute(&mem, &r)
 	CheckReg(1, expected, &r, t)
 }
@@ -64,8 +64,8 @@ func TestSRLINegative(t *testing.T) {
 	// read from x0, write to x1, right shift of 2
 	addi := CreateSLRI(0, 1, 2)
 
-	r.reg[0] = -32                // 11111111111111111111111111100000
-	expected := int32(1073741816) // 00111111111111111111111111111000
+	r.reg[0] = ReinterpreteAsUnsigned(-32) // 11111111111111111111111111100000
+	expected := uint32(1073741816)         // 00111111111111111111111111111000
 	addi.Execute(&mem, &r)
 	CheckReg(1, expected, &r, t)
 }
@@ -77,8 +77,8 @@ func TestSRAI(t *testing.T) {
 	// read from x0, write to x1, right shift of 2
 	addi := CreateSRAI(0, 1, 2)
 
-	r.reg[0] = -32        // sext(11100000)
-	expected := int32(-8) // sect(11111000)
+	r.reg[0] = ReinterpreteAsUnsigned(-32) // sext(11100000)
+	expected := ReinterpreteAsUnsigned(-8) // sect(11111000)
 	addi.Execute(&mem, &r)
 	CheckReg(1, expected, &r, t)
 }
@@ -91,7 +91,7 @@ func TestLui(t *testing.T) {
 	I := CreateLui(1, 1)
 	I.Execute(&mem, &r)
 
-	expected := int32(4096)
+	expected := uint32(4096)
 
 	CheckReg(1, expected, &r, t)
 }
@@ -104,7 +104,7 @@ func TestAUIPC(t *testing.T) {
 	I := CreateAUIPC(1, 1)
 	I.Execute(&mem, &r)
 
-	expected := int32(4100)
+	expected := uint32(4100)
 
 	CheckReg(1, expected, &r, t)
 }
@@ -116,7 +116,7 @@ func TestADD(t *testing.T) {
 	// reg[1] = reg[2] + reg[3]
 	r.reg[2] = 2
 	r.reg[3] = 3
-	expected := int32(5)
+	expected := uint32(5)
 
 	I := CreateADD(1, 2, 3)
 	I.Execute(&mem, &r)
@@ -131,7 +131,7 @@ func TestSUB(t *testing.T) {
 	// reg[1] = reg[2] - reg[3]
 	r.reg[2] = 2
 	r.reg[3] = 3
-	expected := int32(-1)
+	expected := ReinterpreteAsUnsigned(-1)
 
 	I := CreateSUB(1, 2, 3)
 	I.Execute(&mem, &r)
@@ -146,7 +146,7 @@ func TestSLT(t *testing.T) {
 	// reg[1] = reg[2] < reg[3]
 	r.reg[2] = 4
 	r.reg[3] = 5
-	expected := int32(1) // 4<5==true
+	expected := uint32(1) // 4<5==true
 
 	I := CreateSLT(1, 2, 3)
 	I.Execute(&mem, &r)
@@ -160,8 +160,8 @@ func TestSLTU(t *testing.T) {
 
 	// reg[1] = reg[2] < reg[3]
 	r.reg[2] = 4
-	r.reg[3] = -5
-	expected := int32(1) // abs(4)<abs(-5)==true
+	r.reg[3] = ReinterpreteAsUnsigned(-5)
+	expected := uint32(1) // abs(4)<abs(-5)==true
 
 	I := CreateSLTU(1, 2, 3)
 	I.Execute(&mem, &r)
@@ -174,9 +174,9 @@ func TestAND(t *testing.T) {
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
-	r.reg[2] = 5         // 0101
-	r.reg[3] = 4         // 0110
-	expected := int32(4) // 0100
+	r.reg[2] = 5          // 0101
+	r.reg[3] = 4          // 0110
+	expected := uint32(4) // 0100
 
 	I := CreateAND(1, 2, 3)
 	I.Execute(&mem, &r)
@@ -189,9 +189,9 @@ func TestOR(t *testing.T) {
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
-	r.reg[2] = 5         // 0101
-	r.reg[3] = 6         // 0110
-	expected := int32(7) // 0111
+	r.reg[2] = 5          // 0101
+	r.reg[3] = 6          // 0110
+	expected := uint32(7) // 0111
 
 	I := CreateOR(1, 2, 3)
 	I.Execute(&mem, &r)
@@ -204,9 +204,9 @@ func TestXOR(t *testing.T) {
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
-	r.reg[2] = 5         // 0101
-	r.reg[3] = 4         // 0110
-	expected := int32(1) // 0011
+	r.reg[2] = 5          // 0101
+	r.reg[3] = 4          // 0110
+	expected := uint32(1) // 0011
 
 	I := CreateXOR(1, 2, 3)
 	I.Execute(&mem, &r)
@@ -221,7 +221,7 @@ func TestSLL(t *testing.T) {
 	// reg[1] = reg[2] < reg[3]
 	r.reg[2] = 5 // 0101
 	r.reg[3] = 2
-	expected := int32(20) // 010100
+	expected := uint32(20) // 010100
 
 	I := CreateSLL(1, 2, 3)
 	I.Execute(&mem, &r)
@@ -236,7 +236,7 @@ func TestSRA(t *testing.T) {
 	// reg[1] = reg[2] < reg[3]
 	r.reg[2] = 20 // 010100
 	r.reg[3] = 2
-	expected := int32(5) // 0101
+	expected := uint32(5) // 0101
 
 	I := CreateSRA(1, 2, 3)
 	I.Execute(&mem, &r)
@@ -251,7 +251,7 @@ func TestSRL(t *testing.T) {
 	// reg[1] = reg[2] < reg[3]
 	r.reg[2] = 20 // 010100
 	r.reg[3] = 2
-	expected := int32(5) // 0101
+	expected := uint32(5) // 0101
 
 	I := CreateSRL(1, 2, 3)
 	I.Execute(&mem, &r)
@@ -263,7 +263,7 @@ func TestJAL(t *testing.T) {
 	r := Registers{}
 	mem := NewMemory(0)
 
-	begin_pc := int32(10)
+	begin_pc := uint32(10)
 	r.pc = begin_pc
 	pc_offset := int32(16)
 
@@ -275,17 +275,17 @@ func TestJAL(t *testing.T) {
 
 	// make sure the link is saved
 	// CheckReg(reg_a0, begin_pc+1, &r, t)
-	CheckPc(begin_pc+pc_offset, &r, t)
+	CheckPc(begin_pc+uint32(pc_offset), &r, t)
 }
 
 func TestJALR(t *testing.T) {
 	r := Registers{}
 	mem := NewMemory(0)
 
-	offset := int32(10)
+	offset := uint32(10)
 	link_reg := reg_a0
 	addr_reg := reg_a1
-	begin_pc := int32(5)
+	begin_pc := uint32(5)
 
 	r.reg[addr_reg] = 15
 	r.pc = begin_pc
@@ -304,7 +304,7 @@ func TestBEQ(t *testing.T) {
 	mem := NewMemory(0)
 
 	offset := ReinterpreteAsUnsigned(int32(10))
-	begin_pc := int32(5)
+	begin_pc := uint32(5)
 
 	r.reg[1] = 1
 	r.reg[2] = 2
