@@ -5,8 +5,8 @@ type Reg struct {
 }
 
 type Registers struct {
-	reg [32]int32
-	pc  int32
+	reg [32]uint32
+	pc  uint32
 }
 
 const (

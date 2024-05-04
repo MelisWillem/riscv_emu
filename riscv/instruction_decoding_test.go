@@ -7,7 +7,7 @@ import (
 func TestDecodeIInstr(t *testing.T) {
 	// addi a0, a1, 10
 	addi_encoded := uint32(10847507)
-	imm := int32(10)
+	imm := uint32(10)
 	rs1 := int(11)
 	func3 := int8(0)
 	rd := 10
@@ -113,7 +113,7 @@ func TestDecodeJInstr(t *testing.T) {
 		opcode: JAL,
 	}
 
-	expectedImm := int32(-1042430)
+	expectedImm := ReinterpreteAsUnsigned(-1042430)
 	expectedDerivedImm := expected.Imm()
 	if expectedImm != expectedDerivedImm {
 		t.Fatalf("\nresImm=     %v\nexpectedImm=%v", expectedDerivedImm, expectedImm)
