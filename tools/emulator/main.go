@@ -8,7 +8,7 @@ import (
 	"log"
 )
 
-func processExecutionBody(mem *riscv.Memory, r *riscv.Registers, executableData []byte, decoder *riscv.Decoder) {
+func processExecutionBody(mem riscv.Memory, r *riscv.Registers, executableData []byte, decoder *riscv.Decoder) {
 	var cache [4]byte
 	for i, b := range executableData {
 		cache_i := i % 4
