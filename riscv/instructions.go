@@ -73,7 +73,7 @@ const (
 )
 
 type Instruction interface {
-	Execute(mem *Memory, regs *Registers) error
+	Execute(mem Memory, regs *Registers) error
 	String() string
 }
 
@@ -125,7 +125,7 @@ const (
 
 )
 
-func (Inst RInstr) Execute(mem *Memory, regs *Registers) error {
+func (Inst RInstr) Execute(mem Memory, regs *Registers) error {
 	// ADD performs the addition of rs1 and rs2. SUB performs the subtraction of rs2 from rs1. Overflows
 	// are ignored and the low XLEN bits of results are written to the destination rd.
 	if Inst.opcode == OP {
@@ -210,7 +210,7 @@ const (
 	FUNC3_LHU int8 = 5
 )
 
-func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
+func (Inst IInstr) Execute(mem Memory, regs *Registers) error {
 	switch Inst.opcode {
 	case JALR:
 		// The indirect jump instruction JALR (jump and link register) uses the I-type encoding. The target
@@ -260,7 +260,7 @@ func (Inst IInstr) Execute(mem *Memory, regs *Registers) error {
 	return nil
 }
 
-func op_imm_execute(Inst IInstr, _ *Memory, regs *Registers) error {
+func op_imm_execute(Inst IInstr, _ Memory, regs *Registers) error {
 	switch Inst.func3 {
 	case FUNC3_ADDI:
 		// ADDI adds the sign-extended 12-bit immediate to register rs1. Arithmetic overflow is ignored and
@@ -353,7 +353,7 @@ const (
 	FUNC3_SW int8 = 2
 )
 
-func (Instr SInstr) Execute(mem *Memory, regs *Registers) error {
+func (Instr SInstr) Execute(mem Memory, regs *Registers) error {
 	switch Instr.opcode {
 	case STORE:
 		// Loads are encoded in the I-type format and stores are S-type. The effective address is obtained by
@@ -417,7 +417,7 @@ const (
 	FUNC3_BGEU uint32 = 7
 )
 
-func (Instr BInstr) Execute(mem *Memory, regs *Registers) error {
+func (Instr BInstr) Execute(mem Memory, regs *Registers) error {
 	offset := sext(Instr.imm(), 11)
 	// rs1 and rs2 are stored as uint32, but in this case they represent
 	// a signed number. By shifting we can remove the sign bit before comparing
@@ -482,7 +482,7 @@ func (Instr UInstr) String() string {
 		Instr.opcode)
 }
 
-func (Inst UInstr) Execute(mem *Memory, regs *Registers) error {
+func (Inst UInstr) Execute(mem Memory, regs *Registers) error {
 	imm1_shifted := Inst.imm << 12 // fill lowest 12 bits with zero
 	switch Inst.opcode {
 	case AUIPC:
@@ -542,7 +542,7 @@ func (Instr JInstr) Imm() uint32 {
 	return signed
 }
 
-func (Instr JInstr) Execute(mem *Memory, regs *Registers) error {
+func (Instr JInstr) Execute(mem Memory, regs *Registers) error {
 	if Instr.opcode == JAL {
 		// The jump and link (JAL) instruction uses the J-type format, where the J-immediate encodes a
 		// signed offset in multiples of 2 bytes. The offset is sign-extended and added to the address of the
