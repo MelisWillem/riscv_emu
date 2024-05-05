@@ -74,8 +74,8 @@ func DecodeBInstr(word uint32) BInstr {
 	return BInstr{
 		imm3:   imm3,
 		imm2:   imm2,
-		rs2:    rs2,
-		rs1:    rs1,
+		rs2:    int(rs2),
+		rs1:    int(rs1),
 		func3:  func3,
 		imm1:   imm1,
 		imm0:   imm0,
@@ -90,7 +90,7 @@ func DecodeUInstr(word uint32) UInstr {
 
 	return UInstr{
 		imm:    sext(imm, 12),
-		rd:     int32(rd),
+		rd:     int(rd),
 		opcode: int8(opcode),
 	}
 }

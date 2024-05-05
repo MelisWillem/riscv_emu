@@ -4,22 +4,22 @@ import (
 	"testing"
 )
 
-func CheckReg(regIndex int, expected uint32, r *Registers, t *testing.T) {
-	if r.reg[regIndex] != expected {
-		t.Logf("reg[%d]==%d and should be %d", regIndex, r.reg[regIndex], expected)
+func CheckReg(regIndex int, expected uint32, r Registers, t *testing.T) {
+	if r.Reg(regIndex) != expected {
+		t.Logf("reg[%d]==%d and should be %d", regIndex, r.Reg(regIndex), expected)
 		t.Fail()
 	}
 }
 
-func CheckPc(expected uint32, r *Registers, t *testing.T) {
-	if r.pc != expected {
-		t.Logf("pc==%d and should be %d", r.pc, expected)
+func CheckPc(expected uint32, r Registers, t *testing.T) {
+	if r.Pc() != expected {
+		t.Logf("pc==%d and should be %d", r.Pc(), expected)
 		t.Fail()
 	}
 }
 
 func TestAddI(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(10)
 
 	// read from x0, write to x1, add 2
@@ -32,7 +32,7 @@ func TestAddI(t *testing.T) {
 }
 
 func TestSLLI(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(10)
 
 	// read from x0, write to x1, left shift of 2
@@ -45,7 +45,7 @@ func TestSLLI(t *testing.T) {
 }
 
 func TestSRLI(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(10)
 
 	// read from x0, write to x1, right shift of 2
@@ -58,7 +58,7 @@ func TestSRLI(t *testing.T) {
 }
 
 func TestSRLINegative(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(10)
 
 	// read from x0, write to x1, right shift of 2
@@ -71,7 +71,7 @@ func TestSRLINegative(t *testing.T) {
 }
 
 func TestSRAI(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(10)
 
 	// read from x0, write to x1, right shift of 2
@@ -85,7 +85,7 @@ func TestSRAI(t *testing.T) {
 
 // U-instr
 func TestLui(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 	// set 4096 (1 shifted by 12) in register 1
 	I := CreateLui(1, 1)
@@ -97,7 +97,7 @@ func TestLui(t *testing.T) {
 }
 
 func TestAUIPC(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 	r.pc = 4
 	// add 4096 (1 shifted by 12) to pc and put in register 1
@@ -110,7 +110,7 @@ func TestAUIPC(t *testing.T) {
 }
 
 func TestADD(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] + reg[3]
@@ -125,7 +125,7 @@ func TestADD(t *testing.T) {
 }
 
 func TestSUB(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] - reg[3]
@@ -140,7 +140,7 @@ func TestSUB(t *testing.T) {
 }
 
 func TestSLT(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
@@ -155,7 +155,7 @@ func TestSLT(t *testing.T) {
 }
 
 func TestSLTU(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
@@ -170,7 +170,7 @@ func TestSLTU(t *testing.T) {
 }
 
 func TestAND(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
@@ -185,7 +185,7 @@ func TestAND(t *testing.T) {
 }
 
 func TestOR(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
@@ -200,7 +200,7 @@ func TestOR(t *testing.T) {
 }
 
 func TestXOR(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
@@ -215,7 +215,7 @@ func TestXOR(t *testing.T) {
 }
 
 func TestSLL(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
@@ -230,7 +230,7 @@ func TestSLL(t *testing.T) {
 }
 
 func TestSRA(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
@@ -245,7 +245,7 @@ func TestSRA(t *testing.T) {
 }
 
 func TestSRL(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	// reg[1] = reg[2] < reg[3]
@@ -260,7 +260,7 @@ func TestSRL(t *testing.T) {
 }
 
 func TestJAL(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	begin_pc := uint32(10)
@@ -279,7 +279,7 @@ func TestJAL(t *testing.T) {
 }
 
 func TestJALR(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	offset := uint32(10)
@@ -293,14 +293,14 @@ func TestJALR(t *testing.T) {
 	I := CreateJALR(offset, link_reg, addr_reg)
 	I.Execute(&mem, &r)
 
-	// make sure the link is saved
-	CheckReg(link_reg, begin_pc+1, &r, t)
+	// make sure the link registers points to the next instruction
+	CheckReg(link_reg, begin_pc+4, &r, t)
 	// 10 + 15 = 25 -> setting least-sign to 0 results in 24
 	CheckPc(24, &r, t)
 }
 
 func TestBEQ(t *testing.T) {
-	r := Registers{}
+	r := RegistersImpl{}
 	mem := NewMemory(0)
 
 	offset := ReinterpreteAsUnsigned(int32(10))
@@ -346,18 +346,37 @@ func TestCreateStoreOffset(t *testing.T) {
 }
 
 func TestSWLW(t *testing.T) {
-	r := Registers{}
-	mem := NewMemory(10)
+	r := RegistersImpl{}
+	mem := NewMemory(20)
 
 	offset := int32(10)
+	addr := uint32(1)
 	addrReg := 0
-	dstReg := 1
+	LdReg := 1
+	StReg := 2
 
-	r.reg[addrReg] = 1
+	r.reg[addrReg] = addr
+	wordToBeStored := uint32(5)
+	r.SetReg(StReg, wordToBeStored) // the word to be store==5
 
-	IStore := CreateSW(offset, addrReg, dstReg)
-	IStore.Execute(&mem, &r)
+	IStore := CreateSW(offset, StReg, addrReg)
+	errStore := IStore.Execute(&mem, &r)
+	if errStore != nil {
+		t.Errorf("store instruction failed with error=%v", errStore.Error())
+	}
 
-	ILoad := CreateLW(offset, addrReg, dstReg)
-	ILoad.Execute(&mem, &r)
+	val, _ := mem.Load(1+uint32(offset), 4) // assume offset is not negative
+	if val != wordToBeStored {
+		t.Errorf("word not saved in memory, mem load results in %d but should be %d", val, wordToBeStored)
+	}
+
+	ILoad := CreateLW(offset, addrReg, LdReg)
+	errLoad := ILoad.Execute(&mem, &r)
+	if errLoad != nil {
+		t.Errorf("load instruction failed with error=%v", errLoad.Error())
+	}
+
+	if r.Reg(LdReg) != wordToBeStored {
+		t.Errorf("Load result(value=%d) != %d", r.Reg(LdReg), wordToBeStored)
+	}
 }

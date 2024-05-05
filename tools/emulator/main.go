@@ -8,7 +8,7 @@ import (
 	"log"
 )
 
-func processExecutionBody(mem riscv.Memory, r *riscv.Registers, executableData []byte, decoder *riscv.Decoder) {
+func processExecutionBody(mem riscv.Memory, r riscv.Registers, executableData []byte, decoder *riscv.Decoder) {
 	var cache [4]byte
 	for i, b := range executableData {
 		cache_i := i % 4
@@ -47,7 +47,7 @@ func main() {
 	}
 
 	mem := riscv.NewMemory(100)
-	r := riscv.Registers{}
+	r := riscv.RegistersImpl{}
 	decoder := riscv.NewDecoder()
 	log.Println("Registering base instruction set in decoder")
 	decoder.RegisterBaseInstructionSet()
