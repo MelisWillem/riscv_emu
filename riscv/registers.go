@@ -1,12 +1,32 @@
 package riscv
 
-type Reg struct {
-	id int
-}
-
-type Registers struct {
+type RegistersImpl struct {
 	reg [32]uint32
 	pc  uint32
+}
+
+type Registers interface {
+	Reg(i int) uint32
+	SetReg(i int, data uint32)
+
+	Pc() uint32
+	SetPc(uint32)
+}
+
+func (r *RegistersImpl) Reg(i int) uint32 {
+	return r.reg[i]
+}
+
+func (r *RegistersImpl) SetReg(i int, data uint32) {
+	r.reg[i] = data
+}
+
+func (r *RegistersImpl) Pc() uint32 {
+	return r.pc
+}
+
+func (r *RegistersImpl) SetPc(pc uint32) {
+	r.pc = pc
 }
 
 const (
