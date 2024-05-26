@@ -1,5 +1,7 @@
 package riscv
 
+import "log"
+
 type RegistersImpl struct {
 	reg [32]uint32
 	pc  uint32
@@ -64,3 +66,29 @@ const (
 	reg_t5   int = 30
 	reg_t6   int = 31
 )
+
+type LoggedRegisters struct {
+	reg Registers
+}
+
+func (r *LoggedRegisters) Reg(i int) uint32 {
+	return r.reg.Reg(i)
+}
+
+func (r *LoggedRegisters) SetReg(i int, data uint32) {
+	log.Printf("Setting reg[%d]=%d", i, data)
+	r.reg.SetReg(i, data)
+}
+
+func (r *LoggedRegisters) Pc() uint32 {
+	return r.reg.Pc()
+}
+
+func (r *LoggedRegisters) SetPc(pc uint32) {
+	log.Printf("Setting pc=%d", pc)
+	r.reg.SetPc(pc)
+}
+
+func NewLoggedRegisters(r Registers) *LoggedRegisters {
+	return &LoggedRegisters{r}
+}
