@@ -34,6 +34,7 @@ func processExecutionBody(mem riscv.Memory, r riscv.Registers, executableData []
 
 func main() {
 	file := flag.String("file", "", "Elf file with risc machine code in it.")
+	logRegisterChanged := flag.Bool("log-reg", false, "Log all register changes")
 	flag.Parse()
 
 	if *file == "" {
@@ -47,7 +48,12 @@ func main() {
 	}
 
 	mem := riscv.NewMemory(100)
-	r := riscv.RegistersImpl{}
+	// var r *riscv.RegistersImpl = &riscv.RegistersImpl{}
+	var r riscv.Registers = &riscv.RegistersImpl{}
+	if *logRegisterChanged {
+		r = riscv.NewLoggedRegisters(r)
+	}
+
 	decoder := riscv.NewDecoder()
 	log.Println("Registering base instruction set in decoder")
 	decoder.RegisterBaseInstructionSet()
@@ -60,7 +66,7 @@ func main() {
 				log.Panicf("Invalid section passed to print function.")
 			}
 
-			processExecutionBody(&mem, &r, data, decoder)
+			processExecutionBody(&mem, r, data, decoder)
 		}
 	}
 
