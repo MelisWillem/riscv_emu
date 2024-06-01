@@ -15,17 +15,28 @@ type Memory interface {
 
 type MemoryImpl struct {
 	// the memory is byte addressed
-	data []uint8
+	data   []uint8
+	offset uint32
+}
+
+func (mem *MemoryImpl) CheckAddr(addr uint32) error {
+	if addr >= uint32(mem.Len()) {
+		return fmt.Errorf("out of range error max addr=%v but actual addr=%v", mem.Len(), addr)
+	}
+	if addr < mem.offset {
+		return fmt.Errorf("addr=%d is smaller then begin address=%d", addr, mem.offset)
+	}
+	return nil
 }
 
 func (mem *MemoryImpl) StoreByte(addr uint32, data uint32) error {
-	if addr >= uint32(mem.Len()) {
-		return fmt.Errorf("out of range error on store max addr=%v but actual addr=%v", mem.Len(), addr)
+	addrError := mem.CheckAddr(addr)
+	if addrError != nil {
+		return fmt.Errorf("Store %v failed with error: ", addrError.Error())
 	}
-
 	filteredData := data & uint32(255)
 	dataByte := uint8(data & filteredData)
-	mem.data[addr] = dataByte
+	mem.data[addr-mem.offset] = dataByte
 
 	return nil
 }
@@ -46,11 +57,12 @@ func (mem *MemoryImpl) Store(addr uint32, data uint32, numBytes uint32) error {
 }
 
 func (mem *MemoryImpl) LoadByte(addr uint32) (uint32, error) {
-	if addr >= uint32(mem.Len()) {
-		return 0, fmt.Errorf("out of range error on load max addr=%v but actual addr=%v", mem.Len(), addr)
+	addrError := mem.CheckAddr(addr)
+	if addrError != nil {
+		return 0, fmt.Errorf("Load %v failed with error: ", addrError.Error())
 	}
 
-	return uint32(mem.data[addr]), nil
+	return uint32(mem.data[addr-mem.offset]), nil
 }
 
 func (mem *MemoryImpl) Load(addr uint32, numBytes uint32) (uint32, error) {
@@ -70,11 +82,15 @@ func (mem *MemoryImpl) Load(addr uint32, numBytes uint32) (uint32, error) {
 }
 
 func (mem *MemoryImpl) Len() int {
-	return len(mem.data)
+	return len(mem.data) + int(mem.offset)
 }
 
 func NewMemory(size int) MemoryImpl {
-	return MemoryImpl{make([]uint8, size)}
+	return MemoryImpl{make([]uint8, size), 0}
+}
+
+func NewMemoryWithOffset(size int, offset uint32) MemoryImpl {
+	return MemoryImpl{make([]uint8, size), offset}
 }
 
 type LoggedMemory struct {
