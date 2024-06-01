@@ -26,3 +26,10 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+    - name: DumperExample
+      run: go run ./tools/dumper --file=./elf_files/hello.elf
+
+    - name: EmulatorExample
+      run: go run ./tools/emulator/ -file=./elf_files/hello.elf -memory_size=1000000 -memory_offset=268000000
+
