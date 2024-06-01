@@ -35,6 +35,8 @@ func processExecutionBody(mem riscv.Memory, r riscv.Registers, executableData []
 func main() {
 	file := flag.String("file", "", "Elf file with risc machine code in it.")
 	logRegisterChanged := flag.Bool("log-reg", false, "Log all register changes")
+	memory_size := flag.Int("memory_size", 100, "Size of the memory")
+	memory_offset := flag.Int("memory_offset", 0, "Begin address of memory")
 	flag.Parse()
 
 	if *file == "" {
@@ -47,7 +49,7 @@ func main() {
 		log.Panic(err.Error())
 	}
 
-	mem := riscv.NewMemory(100)
+	mem := riscv.NewMemoryWithOffset(*memory_size, uint32(*memory_offset))
 	// var r *riscv.RegistersImpl = &riscv.RegistersImpl{}
 	var r riscv.Registers = &riscv.RegistersImpl{}
 	if *logRegisterChanged {
